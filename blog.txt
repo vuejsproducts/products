@@ -1,0 +1,2443 @@
+blog
+src
+	dataresolver
+CustomImageCmsElementResolver
+
+<?php declare(strict_types=1);
+
+namespace Blog\DataResolver;
+
+use Shopware\Core\Content\Cms\Aggregate\CmsSlot\CmsSlotEntity;
+use Shopware\Core\Content\Cms\DataResolver\CriteriaCollection;
+use Shopware\Core\Content\Cms\DataResolver\Element\AbstractCmsElementResolver;
+use Shopware\Core\Content\Cms\DataResolver\Element\ElementDataCollection;
+use Shopware\Core\Content\Cms\DataResolver\FieldConfig;
+use Shopware\Core\Content\Cms\DataResolver\ResolverContext\EntityResolverContext;
+use Shopware\Core\Content\Cms\DataResolver\ResolverContext\ResolverContext;
+use Shopware\Core\Content\Cms\SalesChannel\Struct\ImageStruct;
+use Shopware\Core\Content\Media\MediaDefinition;
+use Shopware\Core\Content\Media\MediaEntity;
+use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\Struct\ArrayEntity;
+use Shopware\Core\Framework\Uuid\Uuid;
+
+class CustomImageCmsElementResolver extends AbstractCmsElementResolver
+{
+    public function getType(): string
+    {
+        return 'custom-image';
+    }
+
+    public function collect(CmsSlotEntity $slot, ResolverContext $resolverContext): ?CriteriaCollection
+    {
+        $config = $slot->getFieldConfig();
+
+        $imageConfig = $config->get('media');
+
+        if (!$imageConfig || $imageConfig->isMapped()) {
+            return null;
+        }
+
+        $mediaId = $imageConfig->getStringValue();
+
+        if (empty($mediaId)) {
+            return null;
+        }
+
+        $criteria = new Criteria([$mediaId]);
+        $collection = new CriteriaCollection();
+        $collection->add('media_' . $slot->getUniqueIdentifier(), MediaDefinition::class, $criteria);
+
+        return $collection;
+    }
+
+    public function enrich(CmsSlotEntity $slot, ResolverContext $resolverContext, ElementDataCollection $result): void
+    {
+        $config = $slot->getFieldConfig();
+        $data = new ArrayEntity();
+        $data->setUniqueIdentifier(Uuid::randomHex());
+        $slot->setData($data);
+
+        $image = new ImageStruct();
+        $imageConfig = $config->get('media');
+
+        if ($imageConfig) {
+            $this->addMediaEntity($slot, $image, $result, $imageConfig, $resolverContext);
+        }
+
+        $data->set('media', $image);
+
+
+        $urlConfig = $config->get('url');
+        if ($urlConfig) {
+            $data->set('url', $urlConfig->getStringValue());
+        }
+    }
+
+    private function addMediaEntity(
+        CmsSlotEntity $slot,
+        ImageStruct $image,
+        ElementDataCollection $result,
+        FieldConfig $config,
+        ResolverContext $resolverContext
+    ): void {
+        if ($config->isMapped() && $resolverContext instanceof EntityResolverContext) {
+
+            $media = $this->resolveEntityValue($resolverContext->getEntity(), $config->getValue());
+            if ($media !== null) {
+                $image->setMediaId($media->getUniqueIdentifier());
+                $image->setMedia($media);
+            }
+        }
+
+        if ($config->isStatic()) {
+            $mediaId = $config->getStringValue();
+            $image->setMediaId($mediaId);
+
+            $searchResult = $result->get('media_' . $slot->getUniqueIdentifier());
+            if ($searchResult) {
+
+                $media = $searchResult->get($mediaId);
+                if ($media !== null) {
+                    $image->setMedia($media);
+                }
+            }
+        }
+    }
+}
+resources
+	app
+		admin/src
+			module/sw-cms
+				blocks/text-image
+					image-four-row
+						component
+index.js
+
+import template from './sw-cms-block-image-four-row.html.twig';
+import './sw-cms-block-image-four-row.scss';
+
+export default {
+    template,
+};
+twig
+
+{% block sw_cms_block_image_four_row %}
+    <div class="sw-cms-block-image-four-row">
+        <div class="sw-cms-column">
+            <slot name="left-image"></slot>
+            <slot name="left-button"></slot>
+            <slot name="left-text"></slot>
+
+        </div>
+        <div class="sw-cms-column">
+            <slot name="center-left-image"></slot>
+            <slot name="center-left-button"></slot>
+            <slot name="center-left-text"></slot>
+
+        </div>
+        <div class="sw-cms-column">
+            <slot name="center-right-image"></slot>
+            <slot name="center-right-button"></slot>
+            <slot name="center-right-text"></slot>
+
+        </div>
+        <div class="sw-cms-column">
+            <slot name="right-image"></slot>
+            <slot name="right-button"></slot>
+            <slot name="right-text"></slot>
+
+        </div>
+    </div>
+{% endblock %}
+scss
+
+.sw-cms-block-image-four-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-gap: 40px;
+  align-items: start;
+  padding: 20px;
+
+
+  .sw-cms-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+
+    .sw-cms-el-image.is--cover {
+      width: 100%;
+      min-height: 200px;
+    }
+
+    .sw-cms-el-text {
+      padding-top: 10px;
+    }
+
+    .sw-cms-el-button {
+      margin-top: 10px;
+    }
+  }
+}
+
+						preview
+index.js
+
+import template from './sw-cms-preview-image-four-row.html.twig';
+import './sw-cms-preview-image-four-row.scss';
+
+export default {
+    template,
+
+    computed: {
+        assetFilter() {
+            return Shopware.Filter.getByName('asset');
+        },
+    },
+};
+twig
+
+import template from './sw-cms-preview-image-four-row.html.twig';
+import './sw-cms-preview-image-four-row.scss';
+
+export default {
+    template,
+
+    computed: {
+        assetFilter() {
+            return Shopware.Filter.getByName('asset');
+        },
+    },
+};
+scss
+
+.sw-cms-preview-image-four-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-gap: 20px;
+  padding: 15px;
+
+  .sw-cms-preview-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+
+    .sw-cms-preview-image-text-row__image {
+      width: 100%;
+      height: 80px;
+      overflow: hidden;
+    }
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .sw-cms-preview-button {
+      padding: 5px 10px;
+      background: #189eff;
+      color: #fff;
+      font-size: 12px;
+      border-radius: 3px;
+    }
+
+    p {
+      margin: 0;
+      font-size: 13px;
+    }
+  }
+}
+
+						index.js
+
+import CMS from '../../../constant/sw-cms.constant';
+
+Shopware.Component.register('sw-cms-preview-image-four-row', () => import('./preview'));
+
+Shopware.Component.register('sw-cms-block-image-four-row', () => import('./component'));
+
+Shopware.Service('cmsService').registerCmsBlock({
+    name: 'image-four-row',
+    label: 'Image Four Row',
+    category: 'text-image',
+    component: 'sw-cms-block-image-four-row',
+    previewComponent: 'sw-cms-preview-image-four-row',
+    defaultConfig: {
+        marginBottom: '20px',
+        marginTop: '20px',
+        marginLeft: '20px',
+        marginRight: '20px',
+        sizingMode: 'boxed',
+    },
+    slots: {
+        'left-button':{
+            type: 'button',
+            default: {
+                config: {
+                    title: {
+                        source: 'static',
+                        value: 'Click Me'
+                    },
+                    url: {
+                        source: 'static',
+                        value: 'https://example.com'
+                    }
+                }
+            }
+        },
+        'center-left-button':{
+            type: 'button',
+            default: {
+                config: {
+                    title: {
+                        source: 'static',
+                        value: 'Click Me'
+                    },
+                    url: {
+                        source: 'static',
+                        value: 'https://example.com'
+                    }
+                }
+            }
+        },
+
+        'center-right-button':{
+            type: 'button',
+            default: {
+                config: {
+                    title: {
+                        source: 'static',
+                        value: 'Click Me'
+                    },
+                    url: {
+                        source: 'static',
+                        value: 'https://example.com'
+                    }
+                }
+            }
+        },
+
+        'right-button':{
+            type: 'button',
+            default: {
+                config: {
+                    title: {
+                        source: 'static',
+                        value: 'Click Me'
+                    },
+                    url: {
+                        source: 'static',
+                        value: 'https://example.com'
+                    }
+                }
+            }
+        },
+
+        'left-image': {
+            type: 'image',
+            default: {
+                config: {
+                    displayMode: { source: 'static', value: 'cover' },
+                },
+                data: {
+                    media: {
+                        value: CMS.MEDIA.previewCamera,
+                        source: 'default',
+                    },
+                },
+            },
+        },
+        'center-left-image': {
+            type: 'image',
+            default: {
+                config: {
+                    displayMode: { source: 'static', value: 'cover' },
+                },
+                data: {
+                    media: {
+                        value: CMS.MEDIA.previewPlant,
+                        source: 'default',
+                    },
+                },
+            },
+        },
+        'center-right-image': {
+            type: 'image',
+            default: {
+                config: {
+                    displayMode: { source: 'static', value: 'cover' },
+                },
+                data: {
+                    media: {
+                        value: CMS.MEDIA.previewGlasses,
+                        source: 'default',
+                    },
+                },
+            },
+        },
+        'right-image': {
+            type: 'image',
+            default: {
+                config: {
+                    displayMode: { source: 'static', value: 'cover' },
+                },
+                data: {
+                    media: {
+                        value: CMS.MEDIA.previewMountain,
+                        source: 'default',
+                    },
+                },
+            },
+        },
+        'left-text': {
+            type: 'text',
+            default: {
+                config: {
+                    content: {
+                        source: 'static',
+                        value: `
+                        <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim(),
+                    },
+                },
+            },
+        },
+        'center-left-text': {
+            type: 'text',
+            default: {
+                config: {
+                    content: {
+                        source: 'static',
+                        value: `
+                        <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim(),
+                    },
+                },
+            },
+        },
+        'center-right-text': {
+            type: 'text',
+            default: {
+                config: {
+                    content: {
+                        source: 'static',
+                        value: `
+                        <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim(),
+                    },
+                },
+            },
+        },
+        'right-text': {
+            type: 'text',
+            default: {
+                config: {
+                    content: {
+                        source: 'static',
+                        value: `
+                        <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim(),
+                    },
+                },
+            },
+        },
+    },
+});
+
+					text-image-text
+					component
+index.js
+
+import template from './sw-cms-block-text-image-text.html.twig';
+import './sw-cms-block-text-image-text.scss';
+
+export default {
+    template,
+};
+twig
+
+{% block sw_cms_block_center_text %}
+    <div class="sw-cms-block-center-text">
+        <div class="sw-cms-block-center-text__image-left">
+            <slot name="left-text"></slot>
+        </div>
+
+        <div class="sw-cms-block-center-text__text">
+            <slot name="center-image"></slot>
+        </div>
+
+        <div class="sw-cms-block-center-text__image-right">
+            <slot name="right-text"></slot>
+        </div>
+    </div>
+{% endblock %}
+scss
+
+.sw-cms-block-center-text {
+  display: flex;
+  flex-wrap: wrap;
+
+  .sw-cms-block-center-text__text {
+    flex-grow: 2;
+    flex-shrink: 0;
+    flex-basis: 300px;
+  }
+
+  .sw-cms-block-center-text__image-left,
+  .sw-cms-block-center-text__image-right {
+    flex-grow: 1;
+    flex-shrink: 0;
+    flex-basis: 240px;
+  }
+
+  .sw-cms-el-image.is--cover {
+    min-height: 340px;
+  }
+
+  .sw-cms-el-text {
+    padding: 30px;
+  }
+}
+
+					preview
+index.js
+
+import template from './sw-cms-preview-text-image-text.html.twig';
+import './sw-cms-preview-text-image-text.scss';
+
+export default {
+    template,
+
+    computed: {
+        assetFilter() {
+            return Shopware.Filter.getByName('asset');
+        },
+    },
+};
+twig
+
+{% block sw_cms_block_center_image_preview %}
+    <div class="sw-cms-preview-center-text">
+        <div class="sw-cms-preview-center-text__text">
+            <h2>Lorem ipsum</h2>
+            <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr.</p>
+        </div>
+        <img
+                :src="assetFilter('/administration/static/img/cms/preview_plant_small.jpg')"
+                alt=""
+        >
+        <div class="sw-cms-preview-center-text__text">
+            <h2>Lorem ipsum</h2>
+            <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr.</p>
+        </div>
+
+    </div>
+{% endblock %}
+scss
+
+.sw-cms-preview-center-text {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  padding: 15px;
+
+  .sw-cms-preview-center-text__text {
+    padding: 15px;
+    text-align: center;
+    height: fit-content;
+  }
+
+  img {
+    display: block;
+    object-fit: cover;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+					index.js
+
+import CMS from '../../../constant/sw-cms.constant';
+
+Shopware.Component.register('sw-cms-preview-text-image-text', () => import('./preview'));
+
+Shopware.Component.register('sw-cms-block-text-image-text', () => import('./component'));
+
+Shopware.Service('cmsService').registerCmsBlock({
+    name: 'text-image-text',
+    label: 'Text Image Text',
+    category: 'text-image',
+    component: 'sw-cms-block-text-image-text',
+    previewComponent: 'sw-cms-preview-text-image-text',
+    defaultConfig: {
+        marginBottom: '20px',
+        marginTop: '20px',
+        marginLeft: '20px',
+        marginRight: '20px',
+        sizingMode: 'boxed',
+    },
+    slots: {
+        'left-text': {
+            type: 'text',
+            default: {
+                config: {
+                    content: {
+                        source: 'static',
+                        value: `
+                        <h2 style="text-align: center;">Lorem Ipsum dolor sit amet</h2>
+                        <p style="text-align: center;">Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim(),
+                    },
+                },
+            },
+        },
+        'center-image': {
+            type: 'custom-image',
+            default: {
+                config: {
+                    displayMode: { source: 'static', value: 'cover' },
+                },
+                data: {
+                    media: {
+                        value: null,
+                        source: 'default',
+                    },
+                },
+            },
+        },
+        'right-text': {
+            type: 'text',
+            default: {
+                config: {
+                    content: {
+                        source: 'static',
+                        value: `
+                        <h2 style="text-align: center;">Lorem Ipsum dolor sit amet</h2>
+                        <p style="text-align: center;">Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim(),
+                    },
+                },
+            },
+        },
+
+    }
+});
+
+				constant
+
+const uniqueSlotsKebab = [
+    'buy-box',
+    'product-description-reviews',
+    'cross-selling',
+];
+
+/**
+ * @sw-package discovery
+ */
+// eslint-disable-next-line sw-deprecation-rules/private-feature-declarations
+export default Object.freeze({
+    REQUIRED_FIELD_ERROR_CODE: 'c1051bb4-d103-4f74-8988-acbcafc7fdc3',
+    PAGE_TYPES: {
+        SHOP: 'page',
+        LANDING: 'landingpage',
+        LISTING: 'product_list',
+        PRODUCT_DETAIL: 'product_detail',
+    },
+    TYPE_MAPPING_ENTITIES: {
+        product_detail: {
+            entity: 'product',
+            mode: 'single',
+        },
+        product_list: {
+            entity: 'category',
+            mode: 'single',
+        },
+    },
+    UNIQUE_SLOTS: uniqueSlotsKebab.map((slotName) => slotName.replace(/-./g, (char) => char.toUpperCase()[1])),
+    UNIQUE_SLOTS_KEBAB: uniqueSlotsKebab,
+    SLOT_POSITIONS: {
+        left: 0,
+        'left-image': 100,
+        'left-top': 200,
+        'left-text': 300,
+        'left-bottom': 400,
+        'center-left': 1000,
+        center: 1100,
+        'center-image': 1200,
+        'center-top': 1300,
+        'center-text': 1400,
+        'center-bottom': 1500,
+        'center-right': 1600,
+        right: 2000,
+        'right-image': 2100,
+        'right-top': 2200,
+        'right-text': 2300,
+        'right-bottom': 2400,
+        content: 3000,
+        image: 3100,
+        video: 3200,
+        imageSlider: 3300,
+        default: 5000,
+    },
+    MEDIA: {
+        previewCamera: 'bundles/administration/static/img/cms/preview_camera_large.jpg',
+        previewMountain: 'bundles/administration/static/img/cms/preview_mountain_large.jpg',
+        previewPlant: 'bundles/administration/static/img/cms/preview_plant_large.jpg',
+        previewGlasses: 'bundles/administration/static/img/cms/preview_glasses_large.jpg',
+        SMALL:{
+            previewCamera: 'framework/assets/default/cms/preview_camera_small.jpg',
+            previewMountain: 'framework/assets/default/cms/preview_mountain_small.jpg',
+            previewPlant: 'framework/assets/default/cms/preview_plant_small.jpg',
+            previewGlasses: 'framework/assets/default/cms/preview_glasses_small.jpg',
+        }
+    },
+});
+
+				elements
+button
+component
+index.js
+
+import template from './sw-cms-el-button.html.twig';
+const { Mixin } = Shopware;
+export default {
+    template,
+
+    mixins: [
+        Mixin.getByName('cms-element')
+    ],
+
+    created() {
+        this.createdComponent();
+    },
+
+    methods:{
+        createdComponent() {
+            this.initElementConfig('button');
+        }
+    },
+
+    };
+twig
+
+<div class="sw-cms-el-button">
+    <sw-button class="btn btn-primary" :href="element.config.url.value" target="_blank">
+        {{ element.config.title.value }}
+    </sw-button>
+</div>
+
+config
+index.js
+
+import template from './sw-cms-el-config-button.html.twig';
+const { Mixin } = Shopware;
+export default {
+    template,
+
+    mixins: [
+        Mixin.getByName('cms-element')
+    ],
+
+    created() {
+        this.createdComponent();
+    },
+
+    methods:{
+        createdComponent() {
+            this.initElementConfig('button');
+        },
+        onConfigUpdate() {
+            this.$emit('element-update', this.element);
+        }
+
+    }
+};
+twig
+
+<div>
+    <sw-text-field
+            label="Button Title"
+            v-model:value="element.config.title.value"
+            @input="onConfigUpdate"
+    ></sw-text-field>
+    <sw-text-field
+            label="Button URL"
+            v-model:value="element.config.url.value"
+            @input="onConfigUpdate"
+    ></sw-text-field>
+</div>
+
+preview
+index.js
+
+import template from './sw-cms-el-preview-button.html.twig';
+
+export default {
+    template,
+
+    props: {
+        element: {
+            type: Object,
+            required: true
+        }
+    }
+};
+twig
+
+<div>
+    <sw-button class="btn btn-outline-secondary">
+        Button
+    </sw-button>
+</div>
+
+index.js
+
+
+Shopware.Component.register('sw-cms-el-preview-button', () => import('./preview'));
+
+Shopware.Component.register('sw-cms-el-config-button', () => import('./config'));
+
+Shopware.Component.register('sw-cms-el-button', () => import('./component'));
+
+Shopware.Service('cmsService').registerCmsElement({
+    name: 'button',
+    label: 'Button',
+    component: 'sw-cms-el-button',
+    configComponent: 'sw-cms-el-config-button',
+    previewComponent: 'sw-cms-el-preview-button',
+    defaultConfig: {
+        title: {
+            source: 'static',
+            value: 'Click Me'
+        },
+        url: {
+            source: 'static',
+            value: 'https://example.com'
+        }
+    }
+});
+
+custom-image
+component
+index.js
+
+import CMS from '../../../constant/sw-cms.constant';
+import template from './sw-cms-el-custom-image.html.twig';
+import './sw-cms-el-custom-image.scss';
+
+const { Component, Mixin, Filter } = Shopware;
+
+Component.register('sw-cms-el-custom-image', {
+    template,
+
+    mixins: [
+        Mixin.getByName('cms-element'),
+    ],
+
+    computed: {
+        mediaUrl() {
+            const fallBackImageFileName = CMS.MEDIA.previewPlant.slice(CMS.MEDIA.previewPlant.lastIndexOf('/') + 1);
+            const staticFallBackImage = this.assetFilter(`administration/static/img/cms/${fallBackImageFileName}`);
+            const elemData = this.element?.data?.media || {};
+            const elemConfig = this.element?.config?.media || {};
+
+            if (elemConfig.source === 'mapped') {
+                const demoMedia = this.getDemoValue(elemConfig.value);
+                if (demoMedia?.url) {
+                    return demoMedia.url;
+                }
+                return staticFallBackImage;
+            }
+
+            if (elemConfig.source === 'default' && typeof elemConfig.value === 'string') {
+                const fileName = elemConfig.value.slice(elemConfig.value.lastIndexOf('/') + 1);
+                return this.assetFilter(`/administration/static/img/cms/${fileName}`);
+            }
+
+            if (elemData?.id) {
+                return this.element.data.media.url;
+            }
+
+            if (elemData?.url) {
+                return elemData.url;
+            }
+
+            return staticFallBackImage;
+        },
+
+        assetFilter() {
+            return Filter.getByName('asset');
+        },
+
+        mediaConfigValue() {
+            return this.element?.config?.media?.value;
+        },
+    },
+
+    watch: {
+        'cmsPageState.currentDemoEntity': {
+            handler() {
+                this.updateDemoValue(this.mediaConfigValue);
+            },
+        },
+
+        mediaConfigValue(value) {
+            this.updateDemoValue(value);
+        },
+    },
+
+    created() {
+        this.createdComponent();
+    },
+
+    methods: {
+        createdComponent() {
+            this.initElementConfig('custom-image');
+            this.initElementData('custom-image');
+        },
+        updateDemoValue(value) {
+            const mediaId = this.element?.data?.media?.id;
+            const isSourceStatic = this.element?.config?.media?.source === 'static';
+
+            if (isSourceStatic && mediaId && value !== mediaId) {
+                this.element.config.media.value = mediaId;
+            }
+        },
+    },
+});
+twig
+
+{% block sw_cms_element_custom_image %}
+<div
+    class="sw-cms-el-custom-image"
+>
+
+    {% block sw_cms_element_custom_image_content %}
+    <img
+        :src="mediaUrl"
+        alt=""
+    >
+    {% endblock %}
+</div>
+{% endblock %}
+scss
+
+
+.sw-cms-el-custom-image {
+    display: flex;
+    max-width: 100%;
+
+    img {
+        display: block;
+        max-width: 100%;
+    }
+
+    &.is--cover {
+        height: 100%;
+        width: 100%;
+        position: relative;
+        margin: auto;
+        border-radius: 50%;
+        background-clip: padding-box;
+        overflow: hidden;
+
+        img {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+    }
+
+    &.is--stretch {
+        img {
+            width: 100%;
+        }
+    }
+}
+
+config
+index.js
+
+import template from './sw-cms-el-config-custom-image.html.twig';
+import './sw-cms-el-config-custom-image.scss';
+
+const { Component, Mixin } = Shopware;
+
+Component.register('sw-cms-el-config-custom-image', {
+    template,
+
+    inject: ['repositoryFactory'],
+
+    emits: ['element-update'],
+
+    mixins: [
+        Mixin.getByName('cms-element'),
+    ],
+
+    data() {
+        return {
+            mediaModalIsOpen: false,
+            initialFolderId: null,
+        };
+    },
+
+    computed: {
+        mediaRepository() {
+            return this.repositoryFactory.create('media');
+        },
+
+        uploadTag() {
+            return `cms-element-media-config-${this.element.id}`;
+        },
+
+        previewSource() {
+            if (this.element.data && this.element.data.media && this.element.data.media.id) {
+                return this.element.data.media;
+            }
+
+            return this.element.config.media.value;
+        },
+    },
+
+    created() {
+        this.createdComponent();
+    },
+
+    methods: {
+        createdComponent() {
+            this.initElementConfig('image');
+        },
+
+        async onImageUpload({ targetId }) {
+            const mediaEntity = await this.mediaRepository.get(targetId);
+
+            this.element.config.media.value = mediaEntity.id;
+            this.element.config.media.source = 'static';
+
+            this.updateElementData(mediaEntity);
+
+            this.$emit('element-update', this.element);
+        },
+
+        onImageRemove() {
+            this.element.config.media.value = null;
+
+            this.updateElementData();
+
+            this.$emit('element-update', this.element);
+        },
+
+        onCloseModal() {
+            this.mediaModalIsOpen = false;
+        },
+
+        onSelectionChanges(mediaEntity) {
+            const media = mediaEntity[0];
+            this.element.config.media.value = media.id;
+            this.element.config.media.source = 'static';
+
+            this.updateElementData(media);
+
+            this.$emit('element-update', this.element);
+        },
+
+        updateElementData(media = null) {
+            const mediaId = media === null ? null : media.id;
+            if (!this.element.data) {
+                this.$set(this.element, 'data', { mediaId, media });
+            } else {
+                this.$set(this.element.data, 'mediaId', mediaId);
+                this.$set(this.element.data, 'media', media);
+            }
+        },
+
+        onOpenMediaModal() {
+            this.mediaModalIsOpen = true;
+        },
+
+    },
+});
+twig
+
+
+{% block sw_cms_element_custom_image_config %}
+<div class="sw-cms-el-config-custom-image">
+
+    {% block sw_cms_element_image_config_media_upload %}
+        <sw-cms-mapping-field
+                v-model:config="element.config.media"
+                :label="$tc('Image Upload')"
+                value-types="entity"
+                entity="media"
+        >
+            <sw-media-upload-v2
+                    variant="regular"
+                    :upload-tag="uploadTag"
+                    :source="previewSource"
+                    :allow-multi-select="false"
+                    :default-folder="cmsPageState.pageEntityName"
+                    :caption="$tc('sw-cms.elements.general.config.caption.mediaUpload')"
+                    @media-upload-sidebar-open="onOpenMediaModal"
+                    @media-upload-remove-image="onImageRemove"
+            >
+            </sw-media-upload-v2>
+
+            <template #preview="{ demoValue }">
+                <div class="sw-cms-el-config-image__mapping-preview">
+                    <img
+                            v-if="demoValue.url"
+                            :src="demoValue.url"
+                            alt=""
+                    >
+                    <sw-alert
+                            v-else
+                            class="sw-cms-el-config-image__preview-info"
+                            variant="info"
+                    >
+                        {{ $tc('sw-cms.detail.label.mappingEmptyPreview') }}
+                    </sw-alert>
+                </div>
+            </template>
+        </sw-cms-mapping-field>
+
+        <sw-upload-listener
+                :upload-tag="uploadTag"
+                auto-upload
+                @media-upload-finish="onImageUpload"
+        >
+        </sw-upload-listener>
+    {% endblock %}
+
+    {% block sw_cms_element_image_config_link %}
+        <div class="sw-cms-el-config-image__link">
+            <sw-dynamic-url-field
+                    v-model:value="element.config.url.value"
+            >
+            </sw-dynamic-url-field>
+
+        </div>
+    {% endblock %}
+
+    {% block sw_cms_element_custom_image_config_media_modal %}
+    <sw-media-modal-v2
+        v-if="mediaModalIsOpen"
+        variant="regular"
+        :caption=""
+        :entity-context="cmsPageState.entityName"
+        :allow-multi-select="false"
+        :initial-folder-id="cmsPageState.defaultMediaFolderId"
+        @media-upload-remove-image="onImageRemove"
+        @media-modal-selection-change="onSelectionChanges"
+        @modal-close="onCloseModal"
+    >
+    </sw-media-modal-v2>
+    {% endblock %}
+</div>
+{% endblock %}
+scss
+
+.sw-cms-el-config-custom-image {
+    .sw-media-upload-v2 {
+        margin-bottom: 22px;
+
+        .sw-media-upload-v2__header {
+            display: none;
+        }
+    }
+
+    .sw-cms-el-config-image__mapping-preview {
+        display: grid;
+        width: 100%;
+        height: 200px;
+        justify-items: center;
+        align-items: start;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            overflow: hidden;
+        }
+
+        .sw-cms-el-config-image__preview-info {
+            width: 100%;
+        }
+    }
+}
+
+preview
+index.js
+
+import template from './sw-cms-el-preview-custom-image.html.twig';
+import './sw-cms-el-preview-custom-image.scss';
+
+const { Component } = Shopware;
+
+Component.register('sw-cms-el-preview-custom-image', {
+    template,
+
+    computed: {
+        assetFilter() {
+            return Shopware.Filter.getByName('asset');
+        },
+    },
+});
+
+twig
+
+{% block sw_cms_element_image_preview %}
+    <div class="sw-cms-el-preview-image">
+        <img
+                :src="assetFilter('/administration/static/img/cms/preview_mountain_small.jpg')"
+                alt=""
+        >
+    </div>
+{% endblock %}
+
+scss
+
+.sw-cms-el-preview-image {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+
+    img {
+        margin: 0;
+        display: block;
+        width: 110%;
+    }
+}
+
+index.js
+
+import './component';
+import './config';
+import './preview';
+
+Shopware.Service('cmsService').registerCmsElement({
+    name: 'custom-image',
+    label: 'Custom Image',
+    component: 'sw-cms-el-custom-image',
+    configComponent: 'sw-cms-el-config-custom-image',
+    previewComponent: 'sw-cms-el-preview-custom-image',
+    defaultConfig: {
+        media: {
+            source: 'static',
+            value: null,
+            required: true,
+            entity: {
+                name: 'media',
+            },
+        },
+        url: {
+            source: 'static',
+            value: null,
+        },
+    },
+});
+
+ict-image
+component
+index.js
+
+import CMS from '../../../constant/sw-cms.constant';
+import template from './sw-cms-el-ict-image.html.twig';
+import './sw-cms-el-ict-image.scss';
+
+const { Component, Mixin, Filter } = Shopware;
+
+Component.register('sw-cms-el-ict-image', {
+    template,
+
+    mixins: [
+        Mixin.getByName('cms-element'),
+    ],
+
+    computed: {
+        displayModeClass() {
+            if (this.element.config.displayMode.value === 'standard') {
+                return null;
+            }
+
+            return `is--${this.element.config.displayMode.value}`;
+        },
+
+        styles() {
+            return {
+                'min-height': this.element.config.displayMode.value === 'cover' &&
+                              this.element.config.minHeight.value &&
+                              this.element.config.minHeight.value !== 0 ? this.element.config.minHeight.value : '340px',
+            };
+        },
+
+        imgStyles() {
+            return {
+                'align-self': this.element.config.verticalAlign.value || null,
+            };
+        },
+
+        mediaUrl() {
+            const fallBackImageFileName = CMS.MEDIA.previewMountain.slice(CMS.MEDIA.previewMountain.lastIndexOf('/') + 1);
+            const staticFallBackImage = this.assetFilter(`administration/static/img/cms/${fallBackImageFileName}`);
+            const elemData = this.element.data.media;
+            const elemConfig = this.element.config.media;
+
+            if (elemConfig.source === 'mapped') {
+                const demoMedia = this.getDemoValue(elemConfig.value);
+
+                if (demoMedia?.url) {
+                    return demoMedia.url;
+                }
+
+                return staticFallBackImage;
+            }
+
+            if (elemConfig.source === 'default') {
+                // use only the filename
+                const fileName = elemConfig.value.slice(elemConfig.value.lastIndexOf('/') + 1);
+                return this.assetFilter(`/administration/static/img/cms/${fileName}`);
+            }
+
+            if (elemData?.id) {
+                return this.element.data.media.url;
+            }
+
+            if (elemData?.url) {
+                return this.assetFilter(elemConfig.url);
+            }
+
+            return staticFallBackImage;
+        },
+
+
+        assetFilter() {
+            return Filter.getByName('asset');
+        },
+
+        mediaConfigValue() {
+            return this.element?.config?.sliderItems?.value;
+        },
+    },
+
+    watch: {
+        cmsPageState: {
+            deep: true,
+            handler() {
+                this.$forceUpdate();
+            },
+        },
+
+        mediaConfigValue(value) {
+            const mediaId = this.element?.data?.media?.id;
+            const isSourceStatic = this.element?.config?.media?.source === 'static';
+
+            if (isSourceStatic && mediaId && value !== mediaId) {
+                this.element.config.media.value = mediaId;
+            }
+        },
+    },
+
+    created() {
+        this.createdComponent();
+    },
+
+    methods: {
+        createdComponent() {
+            this.initElementConfig('ict-image');
+            this.initElementData('ict-image');
+        },
+    },
+});
+twig
+
+{% block sw_cms_element_ict_image %}
+<div
+    class="sw-cms-el-ict-image"
+    :class="displayModeClass"
+    :style="styles"
+>
+    {% block sw_cms_element_ict_image_content %}
+    <img
+        :src="mediaUrl"
+        :style="imgStyles"
+        alt=""
+    >
+    {% endblock %}
+</div>
+{% endblock %}
+scss
+
+@import "~scss/variables";
+
+.sw-cms-el-ict-image {
+    display: flex;
+    max-width: 100%;
+
+    img {
+        display: block;
+        max-width: 100%;
+    }
+
+    &.is--cover {
+        height: 100%;
+        width: 100%;
+        position: relative;
+        margin: auto;
+        border-radius: 50%;
+        background-clip: padding-box;
+        overflow: hidden;
+
+        img {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+    }
+
+    &.is--stretch {
+        img {
+            width: 100%;
+        }
+    }
+}
+sw-cms-el-image.spec.vue3.js
+
+/**
+ * @package buyers-experience
+ */
+import { mount } from '@vue/test-utils_v3';
+import 'src/module/sw-cms/mixin/sw-cms-element.mixin';
+
+const mediaDataMock = {
+    id: '1',
+    url: 'http://shopware.com/image1.jpg',
+};
+
+async function createWrapper() {
+    return mount(await wrapTestComponent('sw-cms-el-image', {
+        sync: true,
+    }), {
+        global: {
+            provide: {
+                cmsService: {
+                    getCmsBlockRegistry: () => {
+                        return {};
+                    },
+                    getCmsElementRegistry: () => {
+                        return { image: {} };
+                    },
+                    getPropertyByMappingPath: () => {
+                        return {};
+                    },
+                },
+            },
+        },
+        props: {
+            element: {
+                config: {},
+                data: {},
+            },
+            defaultConfig: {
+                media: {
+                    source: 'static',
+                    value: null,
+                    required: true,
+                    entity: {
+                        name: 'media',
+                    },
+                },
+                displayMode: {
+                    source: 'static',
+                    value: 'standard',
+                },
+                url: {
+                    source: 'static',
+                    value: null,
+                },
+                newTab: {
+                    source: 'static',
+                    value: false,
+                },
+                minHeight: {
+                    source: 'static',
+                    value: '340px',
+                },
+                verticalAlign: {
+                    source: 'static',
+                    value: null,
+                },
+                horizontalAlign: {
+                    source: 'static',
+                    value: null,
+                },
+            },
+        },
+        data() {
+            return {
+                cmsPageState: {
+                    currentPage: {
+                        type: 'ladingpage',
+                    },
+                },
+            };
+        },
+    });
+}
+
+describe('src/module/sw-cms/elements/ict-image/component', () => {
+    it('should show default image if there is no config value', async () => {
+        const wrapper = await createWrapper();
+
+        const img = wrapper.find('img');
+        expect(img.attributes('src'))
+            .toBe(wrapper.vm.assetFilter('administration/static/img/cms/preview_mountain_large.jpg'));
+    });
+
+    it('should show media source regarding to media data', async () => {
+        const wrapper = await createWrapper();
+
+        await wrapper.setProps({
+            element: {
+                config: {
+                    ...wrapper.props().element.config,
+                    media: {
+                        source: 'static',
+                        value: '1',
+                    },
+                },
+                data: {
+                    media: mediaDataMock,
+                },
+            },
+        });
+
+        const img = wrapper.find('img');
+        expect(img.attributes('src')).toBe(mediaDataMock.url);
+    });
+
+    it('should show default image if demo value is undefined', async () => {
+        const wrapper = await createWrapper();
+
+        await wrapper.setProps({
+            element: {
+                config: {
+                    ...wrapper.props().element.config,
+                    media: {
+                        source: 'mapped',
+                        value: 'category.media',
+                    },
+                },
+                data: mediaDataMock,
+            },
+        });
+
+        const img = wrapper.find('img');
+        expect(img.attributes('src'))
+            .toBe(wrapper.vm.assetFilter('administration/static/img/cms/preview_mountain_large.jpg'));
+    });
+});
+
+config
+index.js
+
+import template from './sw-cms-el-config-ict-image.html.twig';
+import './sw-cms-el-config-ict-image.scss';
+
+const { Component, Mixin } = Shopware;
+
+Component.register('sw-cms-el-config-ict-image', {
+    template,
+
+    inject: ['repositoryFactory'],
+
+    mixins: [
+        Mixin.getByName('cms-element'),
+    ],
+
+    data() {
+        return {
+            mediaModalIsOpen: false,
+            initialFolderId: null,
+        };
+    },
+
+    computed: {
+        mediaRepository() {
+            return this.repositoryFactory.create('media');
+        },
+
+        uploadTag() {
+            return `cms-element-media-config-${this.element.id}`;
+        },
+
+        previewSource() {
+            if (this.element.data && this.element.data.media && this.element.data.media.id) {
+                return this.element.data.media;
+            }
+
+            return this.element.config.media.value;
+        },
+    },
+
+    created() {
+        this.createdComponent();
+    },
+
+    methods: {
+        createdComponent() {
+            this.initElementConfig('image');
+        },
+
+        async onImageUpload({ targetId }) {
+            const mediaEntity = await this.mediaRepository.get(targetId);
+
+            this.element.config.media.value = mediaEntity.id;
+            this.element.config.media.source = 'static';
+
+            this.updateElementData(mediaEntity);
+
+            this.$emit('element-update', this.element);
+        },
+
+        onImageRemove() {
+            this.element.config.media.value = null;
+
+            this.updateElementData();
+
+            this.$emit('element-update', this.element);
+        },
+
+        onCloseModal() {
+            this.mediaModalIsOpen = false;
+        },
+
+        onSelectionChanges(mediaEntity) {
+            const media = mediaEntity[0];
+            this.element.config.media.value = media.id;
+            this.element.config.media.source = 'static';
+
+            this.updateElementData(media);
+
+            this.$emit('element-update', this.element);
+        },
+
+        updateElementData(media = null) {
+            const mediaId = media === null ? null : media.id;
+            if (!this.element.data) {
+                this.$set(this.element, 'data', { mediaId, media });
+            } else {
+                this.$set(this.element.data, 'mediaId', mediaId);
+                this.$set(this.element.data, 'media', media);
+            }
+        },
+
+        onOpenMediaModal() {
+            this.mediaModalIsOpen = true;
+        },
+
+        onChangeMinHeight(value) {
+            this.element.config.minHeight.value = value === null ? '' : value;
+
+            this.$emit('element-update', this.element);
+        },
+        onChangeButtonField(value) {
+            this.element.config.buttonField.value = value === null ? '' : value;
+
+            this.$emit('element-update', this.element);
+        },
+        onChangeDisplayMode(value) {
+            if (value === 'cover') {
+                this.element.config.verticalAlign.value = null;
+            }
+
+            this.$emit('element-update', this.element);
+        },
+    },
+});
+twig
+
+<!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
+{% block sw_cms_element_ict_image_config %}
+<div class="sw-cms-el-config-ict-image">
+
+    {% block sw_cms_element_image_config_media_upload %}
+        <sw-cms-mapping-field
+                v-model:config="element.config.media"
+                :label="$tc('sw-cms.elements.image.label')"
+                value-types="entity"
+                entity="media"
+        >
+            <sw-media-upload-v2
+                    variant="regular"
+                    :upload-tag="uploadTag"
+                    :source="previewSource"
+                    :allow-multi-select="false"
+                    :default-folder="cmsPageState.pageEntityName"
+                    :caption="$tc('sw-cms.elements.general.config.caption.mediaUpload')"
+                    @media-upload-sidebar-open="onOpenMediaModal"
+                    @media-upload-remove-image="onImageRemove"
+            />
+
+            <template #preview="{ demoValue }">
+                <div class="sw-cms-el-config-image__mapping-preview">
+                    <img
+                            v-if="demoValue.url"
+                            :src="demoValue.url"
+                            alt=""
+                    >
+                    <sw-alert
+                            v-else
+                            class="sw-cms-el-config-image__preview-info"
+                            variant="info"
+                    >
+                        {{ $tc('sw-cms.detail.label.mappingEmptyPreview') }}
+                    </sw-alert>
+                </div>
+            </template>
+        </sw-cms-mapping-field>
+
+        <sw-upload-listener
+                :upload-tag="uploadTag"
+                auto-upload
+                @media-upload-finish="onImageUpload"
+        />
+    {% endblock %}
+
+    <!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
+    {% block sw_cms_element_image_config_display_mode %}
+        <sw-select-field
+                v-model:value="element.config.displayMode.value"
+                class="sw-cms-el-config-image__display-mode"
+                :label="$tc('sw-cms.elements.general.config.label.displayMode')"
+                @update:value="onChangeDisplayMode"
+        >
+            <option value="standard">
+                {{ $tc('sw-cms.elements.general.config.label.displayModeStandard') }}
+            </option>
+            <option value="cover">
+                {{ $tc('sw-cms.elements.general.config.label.displayModeCover') }}
+            </option>
+            <option value="stretch">
+                {{ $tc('sw-cms.elements.general.config.label.displayModeStretch') }}
+            </option>
+        </sw-select-field>
+    {% endblock %}
+
+    <template v-if="element.config.displayMode.value === 'cover'">
+        <!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
+        {% block sw_cms_element_ict_image_config_min_height %}
+        <sw-text-field
+            v-model="element.config.minHeight.value"
+            :label="$tc('sw-cms.elements.image.config.label.minHeight')"
+            :placeholder="$tc('sw-cms.elements.image.config.placeholder.enterMinHeight')"
+            @input="onChangeMinHeight"
+        />
+        {% endblock %}
+    </template>
+
+    <!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
+    {% block sw_cms_element_ict_image_config_vertical_align %}
+    <sw-select-field
+        v-model="element.config.verticalAlign.value"
+        :label="$tc('sw-cms.elements.general.config.label.verticalAlign')"
+        :placeholder="$tc('sw-cms.elements.general.config.label.verticalAlign')"
+        :disabled="element.config.displayMode.value === 'cover'"
+    >
+        <option value="flex-start">
+            {{ $tc('sw-cms.elements.general.config.label.verticalAlignTop') }}
+        </option>
+        <option value="center">
+            {{ $tc('sw-cms.elements.general.config.label.verticalAlignCenter') }}
+        </option>
+        <option value="flex-end">
+            {{ $tc('sw-cms.elements.general.config.label.verticalAlignBottom') }}
+        </option>
+    </sw-select-field>
+    {% endblock %}
+
+    {% block sw_cms_element_image_config_button %}
+        <sw-text-field
+            v-model:value="element.config.buttonField.value"
+            :label="$tc('sw-cms.elements.image.config.label.buttonField')"
+            :placeholder="$tc('sw-cms.elements.image.config.placeholder.buttonField')"
+            {% if VUE3 %}
+            @update:value="onChangeButtonField"
+            {% else %}
+            @input="onChangeButtonField"
+            {% endif %}
+        />
+    {% endblock %}
+    <!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
+    {% block sw_cms_element_image_config_link %}
+        <div class="sw-cms-el-config-image__link">
+            <sw-dynamic-url-field
+                    v-model:value="element.config.url.value"
+            />
+            <sw-switch-field
+                    v-model:value="element.config.newTab.value"
+                    class="sw-cms-el-config-image__link-tab"
+                    :label="$tc('sw-cms.elements.image.config.label.linkNewTab')"
+            />
+        </div>
+    {% endblock %}
+
+    <!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
+    {% block sw_cms_element_ict_image_config_media_modal %}
+    <sw-media-modal-v2
+        v-if="mediaModalIsOpen"
+        variant="regular"
+        :caption="$tc('sw-cms.elements.general.config.caption.mediaUpload')"
+        :entity-context="cmsPageState.entityName"
+        :allow-multi-select="false"
+        :initial-folder-id="cmsPageState.defaultMediaFolderId"
+        @media-upload-remove-image="onImageRemove"
+        @media-modal-selection-change="onSelectionChanges"
+        @modal-close="onCloseModal"
+    />
+    {% endblock %}
+</div>
+{% endblock %}
+scss
+
+.sw-cms-el-config-ict-image {
+    .sw-media-upload-v2 {
+        margin-bottom: 22px;
+
+        .sw-media-upload-v2__header {
+            display: none;
+        }
+    }
+
+    .sw-cms-el-config-ict-image__mapping-preview {
+        display: grid;
+        width: 100%;
+        height: 200px;
+        justify-items: center;
+        align-items: start;
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            overflow: hidden;
+        }
+
+        .sw-cms-el-config-ict-image__preview-info {
+            width: 100%;
+        }
+    }
+}
+sw-cms-el-config-ict-image.spc.js
+
+``
+import { shallowMount } from '@vue/test-utils';
+import 'src/module/sw-cms/mixin/sw-cms-element.mixin';
+import 'src/module/sw-cms/elements/ict-image/config';
+import 'src/module/sw-cms/component/sw-cms-mapping-field';
+import 'src/app/component/form/sw-dynamic-url-field';
+
+async function createWrapper() {
+    return shallowMount(await Shopware.Component.build('sw-cms-el-config-ict-image'), {
+        provide: {
+            cmsService: {
+                getCmsBlockRegistry: () => {
+                    return {};
+                },
+                getCmsElementRegistry: () => {
+                    return { image: {} };
+                }
+            },
+            repositoryFactory: {
+                create: () => {
+                    return {
+                        search: () => Promise.resolve()
+                    };
+                }
+            }
+        },
+        stubs: {
+            'sw-field': true,
+            'sw-select-field': {
+                template: '<select class="sw-select-field" :value="value" @change="$emit(\'change\', $event.target.value)"><slot></slot></select>',
+                props: ['value', 'options']
+            },
+            'sw-text-field': true,
+            'sw-cms-mapping-field': await Shopware.Component.build('sw-cms-mapping-field'),
+            'sw-media-upload-v2': true,
+            'sw-upload-listener': true,
+            'sw-dynamic-url-field': true,
+        },
+        propsData: {
+            element: {
+                config: {
+                    media: {
+                        source: 'static',
+                        value: null,
+                        required: true,
+                        entity: {
+                            name: 'media'
+                        }
+                    },
+                    displayMode: {
+                        source: 'static',
+                        value: 'standard'
+                    },
+                    url: {
+                        source: 'static',
+                        value: null
+                    },
+                    newTab: {
+                        source: 'static',
+                        value: false
+                    },
+                    minHeight: {
+                        source: 'static',
+                        value: '340px'
+                    },
+                    verticalAlign: {
+                        source: 'static',
+                        value: null
+                    }
+                },
+                data: {}
+            },
+            defaultConfig: {}
+        },
+        data() {
+            return {
+                cmsPageState: {
+                    currentPage: {
+                        type: 'ladingpage'
+                    }
+                }
+            };
+        }
+    });
+}
+
+describe('src/module/sw-cms/elements/ict-image/config', () => {
+    beforeAll(() => {
+        Shopware.State.registerModule('cmsPageState', {
+            namespaced: true,
+            state: {
+                currentMappingTypes: {},
+                currentDemoEntity: null
+            },
+            mutations: {
+                setCurrentDemoEntity(state, entity) {
+                    state.currentDemoEntity = entity;
+                }
+            }
+        });
+    });
+
+    it('should be a Vue.js component', async () => {
+        const wrapper = await createWrapper();
+
+        expect(wrapper.vm).toBeTruthy();
+    });
+
+    it('should keep minHeight value when changing display mode', async () => {
+        const wrapper = await createWrapper('settings');
+        const displayModeSelect = wrapper.find('.sw-cms-el-config-ict-image__display-mode');
+
+        await displayModeSelect.setValue('cover');
+
+        expect(wrapper.vm.element.config.minHeight.value).toBe('340px');
+
+        await displayModeSelect.setValue('standard');
+
+        // Should still have the previous value
+        expect(wrapper.vm.element.config.minHeight.value).toBe('340px');
+    });
+});
+
+
+preview
+index.js
+
+import template from './sw-cms-el-preview-ict-image.html.twig';
+import './sw-cms-el-preview-ict-image.scss';
+
+const { Component } = Shopware;
+
+/**
+ * @private since v6.5.0
+ * @package content
+ */
+Component.register('sw-cms-el-preview-ict-image', {
+    template,
+});
+twig
+
+<!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
+{% block sw_cms_element_ict_image_preview %}
+    <div class="sw-cms-el-preview-ict-image">
+        <img
+            :src="'/administration/static/img/cms/preview_mountain_small.jpg' | asset"
+            alt=""
+        >
+    </div>
+
+{% endblock %}
+scss
+
+.sw-cms-el-preview-ict-image {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+
+    img {
+        margin: 0;
+        display: block;
+        width: 110%;
+    }
+}
+
+index.js
+import './component';
+import './config';
+import './preview';
+
+Shopware.Service('cmsService').registerCmsElement({
+    name: 'ict-image',
+    label: 'sw-cms.elements.ictImages.label',
+    component: 'sw-cms-el-ict-image',
+    configComponent: 'sw-cms-el-config-ict-image',
+    previewComponent: 'sw-cms-el-preview-ict-image',
+    defaultConfig: {
+        buttonField: {
+            source: 'static',
+            value: null,
+        },
+        media: {
+            source: 'static',
+            value: null,
+            required: true,
+            entity: {
+                name: 'media',
+            },
+        },
+        displayMode: {
+            source: 'static',
+            value: 'standard',
+        },
+        url: {
+            source: 'static',
+            value: null,
+        },
+        newTab: {
+            source: 'static',
+            value: false,
+        },
+        minHeight: {
+            source: 'static',
+            value: '340px',
+        },
+        verticalAlign: {
+            source: 'static',
+            value: null,
+        },
+    },
+});
+			src/res/app/admin/src/main.js
+
+
+import './module/sw-cms/blocks/text-image/image-four-row';
+import './module/sw-cms/blocks/text-image/text-image-text'
+import './module/sw-cms/elements/button';
+import './module/sw-cms/elements/custom-image'
+
+		res/app/storefront
+dist/storefront/js/blog
+src
+
+
+res/config
+services.xml
+
+<?xml version="1.0" ?>
+
+    <container xmlns="http://symfony.com/schema/dic/services"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:schemaLocation="http://symfony.com/schema/dic/services http://symfony.com/schema/dic/services/services-1.0.xsd">
+
+        <services>
+            <service id="Blog\DataResolver\CustomImageCmsElementResolver">
+                <argument type="service" id="media.repository"/>
+                <tag name="shopware.cms.data_resolver" />
+            </service>
+        </services>
+    </container>
+
+	res/public
+admin
+css/blog.css
+.sw-cms-el-custom-image{display:flex;max-width:100%}.sw-cms-el-custom-image img{display:block;max-width:100%}.sw-cms-el-custom-image.is--cover{height:100%;width:100%;position:relative;margin:auto;border-radius:50%;background-clip:padding-box;overflow:hidden}.sw-cms-el-custom-image.is--cover img{object-fit:cover;width:100%;height:100%;position:absolute;top:0;left:0;right:0;bottom:0}.sw-cms-el-custom-image.is--stretch img{width:100%}
+.sw-cms-el-config-custom-image .sw-media-upload-v2{margin-bottom:22px}.sw-cms-el-config-custom-image .sw-media-upload-v2 .sw-media-upload-v2__header{display:none}.sw-cms-el-config-custom-image .sw-cms-el-config-image__mapping-preview{display:grid;width:100%;height:200px;justify-items:center;align-items:start}.sw-cms-el-config-custom-image .sw-cms-el-config-image__mapping-preview img{width:100%;height:100%;object-fit:contain;overflow:hidden}.sw-cms-el-config-custom-image .sw-cms-el-config-image__mapping-preview .sw-cms-el-config-image__preview-info{width:100%}
+.sw-cms-el-preview-image{width:100%;height:100%;overflow:hidden}.sw-cms-el-preview-image img{margin:0;display:block;width:110%}
+js/blog.js
+
+!function(){var e,t,a,n,i,o,s,r,l={382:function(){},732:function(){},152:function(){},603:function(e,t,a){Shopware.Component.register("sw-cms-el-preview-button",()=>a.e(957).then(a.bind(a,957))),Shopware.Component.register("sw-cms-el-config-button",()=>a.e(28).then(a.bind(a,28))),Shopware.Component.register("sw-cms-el-button",()=>a.e(228).then(a.bind(a,228))),Shopware.Service("cmsService").registerCmsElement({name:"button",label:"Button",component:"sw-cms-el-button",configComponent:"sw-cms-el-config-button",previewComponent:"sw-cms-el-preview-button",defaultConfig:{title:{source:"static",value:"Click Me"},url:{source:"static",value:"https://example.com"}}})},947:function(e,t,a){var n=a(382);n.__esModule&&(n=n.default),"string"==typeof n&&(n=[[e.id,n,""]]),n.locals&&(e.exports=n.locals),(0,a(534).A)("01fdda4d",n,!0,{})},645:function(e,t,a){var n=a(732);n.__esModule&&(n=n.default),"string"==typeof n&&(n=[[e.id,n,""]]),n.locals&&(e.exports=n.locals),(0,a(534).A)("f6c38710",n,!0,{})},321:function(e,t,a){var n=a(152);n.__esModule&&(n=n.default),"string"==typeof n&&(n=[[e.id,n,""]]),n.locals&&(e.exports=n.locals),(0,a(534).A)("30779790",n,!0,{})},534:function(e,t,a){"use strict";function n(e,t){for(var a=[],n={},i=0;i<t.length;i++){var o=t[i],s=o[0],r={id:e+":"+i,css:o[1],media:o[2],sourceMap:o[3]};n[s]?n[s].parts.push(r):a.push(n[s]={id:s,parts:[r]})}return a}a.d(t,{A:function(){return f}});var i,o="undefined"!=typeof document;if("undefined"!=typeof DEBUG&&DEBUG&&!o)throw Error("vue-style-loader cannot be used in a non-browser environment. Use { target: 'node' } in your Webpack config to indicate a server-rendering environment.");var s={},r=o&&(document.head||document.getElementsByTagName("head")[0]),l=null,m=0,u=!1,c=function(){},d=null,p="data-vue-ssr-id",g="undefined"!=typeof navigator&&/msie [6-9]\b/.test(navigator.userAgent.toLowerCase());function f(e,t,a,i){u=a,d=i||{};var o=n(e,t);return v(o),function(t){for(var a=[],i=0;i<o.length;i++){var r=s[o[i].id];r.refs--,a.push(r)}t?v(o=n(e,t)):o=[];for(var i=0;i<a.length;i++){var r=a[i];if(0===r.refs){for(var l=0;l<r.parts.length;l++)r.parts[l]();delete s[r.id]}}}}function v(e){for(var t=0;t<e.length;t++){var a=e[t],n=s[a.id];if(n){n.refs++;for(var i=0;i<n.parts.length;i++)n.parts[i](a.parts[i]);for(;i<a.parts.length;i++)n.parts.push(w(a.parts[i]));n.parts.length>a.parts.length&&(n.parts.length=a.parts.length)}else{for(var o=[],i=0;i<a.parts.length;i++)o.push(w(a.parts[i]));s[a.id]={id:a.id,refs:1,parts:o}}}}function h(){var e=document.createElement("style");return e.type="text/css",r.appendChild(e),e}function w(e){var t,a,n=document.querySelector("style["+p+'~="'+e.id+'"]');if(n){if(u)return c;n.parentNode.removeChild(n)}if(g){var i=m++;t=y.bind(null,n=l||(l=h()),i,!1),a=y.bind(null,n,i,!0)}else t=_.bind(null,n=h()),a=function(){n.parentNode.removeChild(n)};return t(e),function(n){n?(n.css!==e.css||n.media!==e.media||n.sourceMap!==e.sourceMap)&&t(e=n):a()}}var b=(i=[],function(e,t){return i[e]=t,i.filter(Boolean).join("\n")});function y(e,t,a,n){var i=a?"":n.css;if(e.styleSheet)e.styleSheet.cssText=b(t,i);else{var o=document.createTextNode(i),s=e.childNodes;s[t]&&e.removeChild(s[t]),s.length?e.insertBefore(o,s[t]):e.appendChild(o)}}function _(e,t){var a=t.css,n=t.media,i=t.sourceMap;if(n&&e.setAttribute("media",n),d.ssrId&&e.setAttribute(p,t.id),i&&(a+="\n/*# sourceURL="+i.sources[0]+" */",a+="\n/*# sourceMappingURL=data:application/json;base64,"+btoa(unescape(encodeURIComponent(JSON.stringify(i))))+" */"),e.styleSheet)e.styleSheet.cssText=a;else{for(;e.firstChild;)e.removeChild(e.firstChild);e.appendChild(document.createTextNode(a))}}}},m={};function u(e){var t=m[e];if(void 0!==t)return t.exports;var a=m[e]={id:e,exports:{}};return l[e](a,a.exports,u),a.exports}u.m=l,u.d=function(e,t){for(var a in t)u.o(t,a)&&!u.o(e,a)&&Object.defineProperty(e,a,{enumerable:!0,get:t[a]})},u.f={},u.e=function(e){return Promise.all(Object.keys(u.f).reduce(function(t,a){return u.f[a](e,t),t},[]))},u.u=function(e){return"static/js/"+({28:"39d760685715ec6a99d2",164:"5b3fd61caa0397bb014a",228:"7c633bcf232f94b9a375",426:"e3faeb57da0380c8eaf9",600:"a3ee68d413ea5b0bd592",878:"496ba786e5ecddbe8a42",957:"57b56d0405f24c550bc0"})[e]+".js"},u.miniCssF=function(e){return"static/css/"+(19===e?"blog":e)+".css"},u.o=function(e,t){return Object.prototype.hasOwnProperty.call(e,t)},e={},t="blog:",u.l=function(a,n,i,o){if(e[a]){e[a].push(n);return}if(void 0!==i)for(var s,r,l=document.getElementsByTagName("script"),m=0;m<l.length;m++){var c=l[m];if(c.getAttribute("src")==a||c.getAttribute("data-webpack")==t+i){s=c;break}}s||(r=!0,(s=document.createElement("script")).charset="utf-8",s.timeout=120,u.nc&&s.setAttribute("nonce",u.nc),s.setAttribute("data-webpack",t+i),s.src=a),e[a]=[n];var d=function(t,n){s.onerror=s.onload=null,clearTimeout(p);var i=e[a];if(delete e[a],s.parentNode&&s.parentNode.removeChild(s),i&&i.forEach(function(e){return e(n)}),t)return t(n)},p=setTimeout(d.bind(null,void 0,{type:"timeout",target:s}),12e4);s.onerror=d.bind(null,s.onerror),s.onload=d.bind(null,s.onload),r&&document.head.appendChild(s)},u.r=function(e){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})},u.p="bundles/blog/",a=function(e,t,a,n){var i=document.createElement("link");return i.rel="stylesheet",i.type="text/css",i.onerror=i.onload=function(o){if(i.onerror=i.onload=null,"load"===o.type)a();else{var s=o&&("load"===o.type?"missing":o.type),r=o&&o.target&&o.target.href||t,l=Error("Loading CSS chunk "+e+" failed.\n("+r+")");l.code="CSS_CHUNK_LOAD_FAILED",l.type=s,l.request=r,i.parentNode.removeChild(i),n(l)}},i.href=t,document.head.appendChild(i),i},n=function(e,t){for(var a=document.getElementsByTagName("link"),n=0;n<a.length;n++){var i=a[n],o=i.getAttribute("data-href")||i.getAttribute("href");if("stylesheet"===i.rel&&(o===e||o===t))return i}for(var s=document.getElementsByTagName("style"),n=0;n<s.length;n++){var i=s[n],o=i.getAttribute("data-href");if(o===e||o===t)return i}},i={19:0},u.f.miniCss=function(e,t){i[e]?t.push(i[e]):0!==i[e]&&({164:1,426:1,600:1,878:1})[e]&&t.push(i[e]=new Promise(function(t,i){var o=u.miniCssF(e),s=u.p+o;if(n(o,s))return t();a(e,s,t,i)}).then(function(){i[e]=0},function(t){throw delete i[e],t}))},o={19:0},u.f.j=function(e,t){var a=u.o(o,e)?o[e]:void 0;if(0!==a){if(a)t.push(a[2]);else{var n=new Promise(function(t,n){a=o[e]=[t,n]});t.push(a[2]=n);var i=u.p+u.u(e),s=Error();u.l(i,function(t){if(u.o(o,e)&&(0!==(a=o[e])&&(o[e]=void 0),a)){var n=t&&("load"===t.type?"missing":t.type),i=t&&t.target&&t.target.src;s.message="Loading chunk "+e+" failed.\n("+n+": "+i+")",s.name="ChunkLoadError",s.type=n,s.request=i,a[1](s)}},"chunk-"+e,e)}}},s=function(e,t){var a,n,i=t[0],s=t[1],r=t[2],l=0;if(i.some(function(e){return 0!==o[e]})){for(a in s)u.o(s,a)&&(u.m[a]=s[a]);r&&r(u)}for(e&&e(t);l<i.length;l++)n=i[l],u.o(o,n)&&o[n]&&o[n][0](),o[n]=0},(r=window.webpackJsonpPluginblog=window.webpackJsonpPluginblog||[]).forEach(s.bind(null,0)),r.push=s.bind(null,r.push.bind(r)),window?.__sw__?.assetPath&&(u.p=window.__sw__.assetPath+"/bundles/blog/"),function(){"use strict";let e=["buy-box","product-description-reviews","cross-selling"];var t=Object.freeze({REQUIRED_FIELD_ERROR_CODE:"c1051bb4-d103-4f74-8988-acbcafc7fdc3",PAGE_TYPES:{SHOP:"page",LANDING:"landingpage",LISTING:"product_list",PRODUCT_DETAIL:"product_detail"},TYPE_MAPPING_ENTITIES:{product_detail:{entity:"product",mode:"single"},product_list:{entity:"category",mode:"single"}},UNIQUE_SLOTS:e.map(e=>e.replace(/-./g,e=>e.toUpperCase()[1])),UNIQUE_SLOTS_KEBAB:e,SLOT_POSITIONS:{left:0,"left-image":100,"left-top":200,"left-text":300,"left-bottom":400,"center-left":1e3,center:1100,"center-image":1200,"center-top":1300,"center-text":1400,"center-bottom":1500,"center-right":1600,right:2e3,"right-image":2100,"right-top":2200,"right-text":2300,"right-bottom":2400,content:3e3,image:3100,video:3200,imageSlider:3300,default:5e3},MEDIA:{previewCamera:"bundles/administration/static/img/cms/preview_camera_large.jpg",previewMountain:"bundles/administration/static/img/cms/preview_mountain_large.jpg",previewPlant:"bundles/administration/static/img/cms/preview_plant_large.jpg",previewGlasses:"bundles/administration/static/img/cms/preview_glasses_large.jpg",SMALL:{previewCamera:"framework/assets/default/cms/preview_camera_small.jpg",previewMountain:"framework/assets/default/cms/preview_mountain_small.jpg",previewPlant:"framework/assets/default/cms/preview_plant_small.jpg",previewGlasses:"framework/assets/default/cms/preview_glasses_small.jpg"}}});Shopware.Component.register("sw-cms-preview-image-four-row",()=>u.e(164).then(u.bind(u,164))),Shopware.Component.register("sw-cms-block-image-four-row",()=>u.e(600).then(u.bind(u,600))),Shopware.Service("cmsService").registerCmsBlock({name:"image-four-row",label:"Image Four Row",category:"text-image",component:"sw-cms-block-image-four-row",previewComponent:"sw-cms-preview-image-four-row",defaultConfig:{marginBottom:"20px",marginTop:"20px",marginLeft:"20px",marginRight:"20px",sizingMode:"boxed"},slots:{"left-button":{type:"button",default:{config:{title:{source:"static",value:"Click Me"},url:{source:"static",value:"https://example.com"}}}},"center-left-button":{type:"button",default:{config:{title:{source:"static",value:"Click Me"},url:{source:"static",value:"https://example.com"}}}},"center-right-button":{type:"button",default:{config:{title:{source:"static",value:"Click Me"},url:{source:"static",value:"https://example.com"}}}},"right-button":{type:"button",default:{config:{title:{source:"static",value:"Click Me"},url:{source:"static",value:"https://example.com"}}}},"left-image":{type:"image",default:{config:{displayMode:{source:"static",value:"cover"}},data:{media:{value:t.MEDIA.previewCamera,source:"default"}}}},"center-left-image":{type:"image",default:{config:{displayMode:{source:"static",value:"cover"}},data:{media:{value:t.MEDIA.previewPlant,source:"default"}}}},"center-right-image":{type:"image",default:{config:{displayMode:{source:"static",value:"cover"}},data:{media:{value:t.MEDIA.previewGlasses,source:"default"}}}},"right-image":{type:"image",default:{config:{displayMode:{source:"static",value:"cover"}},data:{media:{value:t.MEDIA.previewMountain,source:"default"}}}},"left-text":{type:"text",default:{config:{content:{source:"static",value:`
+                        <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim()}}}},"center-left-text":{type:"text",default:{config:{content:{source:"static",value:`
+                        <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim()}}}},"center-right-text":{type:"text",default:{config:{content:{source:"static",value:`
+                        <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim()}}}},"right-text":{type:"text",default:{config:{content:{source:"static",value:`
+                        <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim()}}}}}}),Shopware.Component.register("sw-cms-preview-text-image-text",()=>u.e(878).then(u.bind(u,878))),Shopware.Component.register("sw-cms-block-text-image-text",()=>u.e(426).then(u.bind(u,426))),Shopware.Service("cmsService").registerCmsBlock({name:"text-image-text",label:"Text Image Text",category:"text-image",component:"sw-cms-block-text-image-text",previewComponent:"sw-cms-preview-text-image-text",defaultConfig:{marginBottom:"20px",marginTop:"20px",marginLeft:"20px",marginRight:"20px",sizingMode:"boxed"},slots:{"left-text":{type:"text",default:{config:{content:{source:"static",value:`
+                        <h2 style="text-align: center;">Lorem Ipsum dolor sit amet</h2>
+                        <p style="text-align: center;">Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim()}}}},"center-image":{type:"custom-image",default:{config:{displayMode:{source:"static",value:"cover"}},data:{media:{value:null,source:"default"}}}},"right-text":{type:"text",default:{config:{content:{source:"static",value:`
+                        <h2 style="text-align: center;">Lorem Ipsum dolor sit amet</h2>
+                        <p style="text-align: center;">Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+                        sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat,
+                        sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum.
+                        Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.</p>
+                        `.trim()}}}}}}),u(603),u(947);let{Component:a,Mixin:n,Filter:i}=Shopware;a.register("sw-cms-el-custom-image",{template:'{% block sw_cms_element_custom_image %}\n<div\n    class="sw-cms-el-custom-image"\n>\n\n    {% block sw_cms_element_custom_image_content %}\n    <img\n        :src="mediaUrl"\n        alt=""\n    >\n    {% endblock %}\n</div>\n{% endblock %}\n',mixins:[n.getByName("cms-element")],computed:{mediaUrl(){let e=t.MEDIA.previewPlant.slice(t.MEDIA.previewPlant.lastIndexOf("/")+1),a=this.assetFilter(`administration/static/img/cms/${e}`),n=this.element?.data?.media||{},i=this.element?.config?.media||{};if("mapped"===i.source){let e=this.getDemoValue(i.value);return e?.url?e.url:a}if("default"===i.source&&"string"==typeof i.value){let e=i.value.slice(i.value.lastIndexOf("/")+1);return this.assetFilter(`/administration/static/img/cms/${e}`)}return n?.id?this.element.data.media.url:n?.url?n.url:a},assetFilter(){return i.getByName("asset")},mediaConfigValue(){return this.element?.config?.media?.value}},watch:{"cmsPageState.currentDemoEntity":{handler(){this.updateDemoValue(this.mediaConfigValue)}},mediaConfigValue(e){this.updateDemoValue(e)}},created(){this.createdComponent()},methods:{createdComponent(){this.initElementConfig("custom-image"),this.initElementData("custom-image")},updateDemoValue(e){let t=this.element?.data?.media?.id;this.element?.config?.media?.source==="static"&&t&&e!==t&&(this.element.config.media.value=t)}}}),u(645);let{Component:o,Mixin:s}=Shopware;o.register("sw-cms-el-config-custom-image",{template:'\n{% block sw_cms_element_custom_image_config %}\n<div class="sw-cms-el-config-custom-image">\n\n    {% block sw_cms_element_image_config_media_upload %}\n        <sw-cms-mapping-field\n                v-model:config="element.config.media"\n                :label="$tc(\'Image Upload\')"\n                value-types="entity"\n                entity="media"\n        >\n            <sw-media-upload-v2\n                    variant="regular"\n                    :upload-tag="uploadTag"\n                    :source="previewSource"\n                    :allow-multi-select="false"\n                    :default-folder="cmsPageState.pageEntityName"\n                    :caption="$tc(\'sw-cms.elements.general.config.caption.mediaUpload\')"\n                    @media-upload-sidebar-open="onOpenMediaModal"\n                    @media-upload-remove-image="onImageRemove"\n            >\n            </sw-media-upload-v2>\n\n            <template #preview="{ demoValue }">\n                <div class="sw-cms-el-config-image__mapping-preview">\n                    <img\n                            v-if="demoValue.url"\n                            :src="demoValue.url"\n                            alt=""\n                    >\n                    <sw-alert\n                            v-else\n                            class="sw-cms-el-config-image__preview-info"\n                            variant="info"\n                    >\n                        {{ $tc(\'sw-cms.detail.label.mappingEmptyPreview\') }}\n                    </sw-alert>\n                </div>\n            </template>\n        </sw-cms-mapping-field>\n\n        <sw-upload-listener\n                :upload-tag="uploadTag"\n                auto-upload\n                @media-upload-finish="onImageUpload"\n        >\n        </sw-upload-listener>\n    {% endblock %}\n\n    {% block sw_cms_element_image_config_link %}\n        <div class="sw-cms-el-config-image__link">\n            <sw-dynamic-url-field\n                    v-model:value="element.config.url.value"\n            >\n            </sw-dynamic-url-field>\n\n        </div>\n    {% endblock %}\n\n    {% block sw_cms_element_custom_image_config_media_modal %}\n    <sw-media-modal-v2\n        v-if="mediaModalIsOpen"\n        variant="regular"\n        :caption=""\n        :entity-context="cmsPageState.entityName"\n        :allow-multi-select="false"\n        :initial-folder-id="cmsPageState.defaultMediaFolderId"\n        @media-upload-remove-image="onImageRemove"\n        @media-modal-selection-change="onSelectionChanges"\n        @modal-close="onCloseModal"\n    >\n    </sw-media-modal-v2>\n    {% endblock %}\n</div>\n{% endblock %}\n',inject:["repositoryFactory"],emits:["element-update"],mixins:[s.getByName("cms-element")],data(){return{mediaModalIsOpen:!1,initialFolderId:null}},computed:{mediaRepository(){return this.repositoryFactory.create("media")},uploadTag(){return`cms-element-media-config-${this.element.id}`},previewSource(){return this.element.data&&this.element.data.media&&this.element.data.media.id?this.element.data.media:this.element.config.media.value}},created(){this.createdComponent()},methods:{createdComponent(){this.initElementConfig("image")},async onImageUpload({targetId:e}){let t=await this.mediaRepository.get(e);this.element.config.media.value=t.id,this.element.config.media.source="static",this.updateElementData(t),this.$emit("element-update",this.element)},onImageRemove(){this.element.config.media.value=null,this.updateElementData(),this.$emit("element-update",this.element)},onCloseModal(){this.mediaModalIsOpen=!1},onSelectionChanges(e){let t=e[0];this.element.config.media.value=t.id,this.element.config.media.source="static",this.updateElementData(t),this.$emit("element-update",this.element)},updateElementData(e=null){let t=null===e?null:e.id;this.element.data?(this.$set(this.element.data,"mediaId",t),this.$set(this.element.data,"media",e)):this.$set(this.element,"data",{mediaId:t,media:e})},onOpenMediaModal(){this.mediaModalIsOpen=!0}}}),u(321);let{Component:r}=Shopware;r.register("sw-cms-el-preview-custom-image",{template:'{% block sw_cms_element_image_preview %}\n    <div class="sw-cms-el-preview-image">\n        <img\n                :src="assetFilter(\'/administration/static/img/cms/preview_mountain_small.jpg\')"\n                alt=""\n        >\n    </div>\n{% endblock %}\n',computed:{assetFilter(){return Shopware.Filter.getByName("asset")}}}),Shopware.Service("cmsService").registerCmsElement({name:"custom-image",label:"Custom Image",component:"sw-cms-el-custom-image",configComponent:"sw-cms-el-config-custom-image",previewComponent:"sw-cms-el-preview-custom-image",defaultConfig:{media:{source:"static",value:null,required:!0,entity:{name:"media"}},url:{source:"static",value:null}}})}()}();
+
+static
+	res/views/storefront
+block
+cms-block-image-four-row.html.twig
+
+{% block block_image_four_row %}
+    {% set columns = 4 %}
+
+    {% block block_image_four_row_left %}
+        <div class="col-md-3">
+            {% block block_image_four_row_left_image %}
+                {% set element = block.slots.getSlot('left-image') %}
+                    {% block block_image_four_column_left_inner_image %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+            {% endblock %}
+
+            {% block block_image_four_row_left_button %}
+                {% set element = block.slots.getSlot('left-button') %}
+                    {% block block_image_four_column_left_inner_button %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+            {% endblock %}
+
+            {% block block_image_four_row_left_text %}
+                {% set element = block.slots.getSlot('left-text') %}
+                    {% block block_image_four_column_left_inner_text %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+            {% endblock %}
+        </div>
+    {% endblock %}
+
+
+    {% block block_image_text_row_center_left %}
+        <div class="col-md-3">
+            {% block block_image_text_row_center_left_image %}
+                {% set element = block.slots.getSlot('center-left-image') %}
+                    {% block block_image_four_column_center_left_inner_image %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock%}
+                {% endblock %}
+
+            {% block block_image_four_row_center_left_button %}
+                {% set element = block.slots.getSlot('center-left-button') %}
+                    {% block block_image_four_column_center_left_inner_button %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                {% endblock %}
+            {% endblock %}
+
+            {% block block_image_text_row_center_left_text %}
+                {% set element = block.slots.getSlot('center-left-text') %}
+                    {% block block_image_four_column_center_left_inner_text %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+                {% endblock %}
+        </div>
+    {% endblock %}
+
+    {% block block_image_text_row_center_right %}
+        <div class="col-md-3">
+            {% block block_image_text_row_center_right_image %}
+                {% set element = block.slots.getSlot('center-right-image') %}
+                    {% block block_image_four_column_center_right_inner_image %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+                {% endblock %}
+
+            {% block block_image_four_row_center_right_button %}
+                {% set element = block.slots.getSlot('center-right-button') %}
+                    {% block block_image_four_column_center_right_inner_button %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+            {% endblock %}
+
+            {% block block_image_text_row_center_right_text %}
+                {% set element = block.slots.getSlot('center-right-text') %}
+                    {% block block_image_four_column_center_right_inner_text %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+            {% endblock %}
+        </div>
+    {% endblock %}
+
+    {% block block_image_text_row_right %}
+        <div class="col-md-3">
+            {% block block_image_text_row_right_image %}
+                {% set element = block.slots.getSlot('right-image') %}
+                    {% block block_image_four_column_right_inner_image %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+            {% endblock %}
+
+            {% block block_image_four_row_right_button %}
+                {% set element = block.slots.getSlot('right-button') %}
+                    {% block block_image_four_column_right_inner_button %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+            {% endblock %}
+
+            {% block block_image_text_row_right_text %}
+                {% set element = block.slots.getSlot('right-text') %}
+                    {% block block_image_four_column_right_inner_text %}
+                        <div data-cms-element-id="{{ element.id }}">
+                            {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                        </div>
+                    {% endblock %}
+            {% endblock %}
+        </div>
+    {% endblock %}
+{% endblock %}
+cms-block-text-image-text.html.twig
+
+{% block block_text_image_text %}
+    {% set columns = 3 %}
+
+    {% block block_left_text %}
+        {% set element = block.slots.getSlot('left-text') %}
+
+        <div class="col-md-4" data-cms-element-id="{{ element.id }}">
+            {% block block_text_left_inner %}
+                {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+            {% endblock %}
+        </div>
+    {% endblock %}
+
+    {% block block_center_image %}
+        {% set element = block.slots.getSlot('center-image') %}
+
+        <div class="col-md-4" data-cms-element-id="{{ element.id }}">
+            {% block block_center_image_center_inner %}
+                {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+            {% endblock %}
+        </div>
+    {% endblock %}
+
+    {% block block_right_text %}
+        {% set element = block.slots.getSlot('right-text') %}
+
+        <div class="col-md-4" data-cms-element-id="{{ element.id }}">
+            {% block block_text_right_inner %}
+                {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+            {% endblock %}
+        </div>
+    {% endblock %}
+{% endblock %}
+
+element
+cms-element-button.html.twig
+
+{% block element_button %}
+    <a class="btn btn-primary" href="{{ element.config.url.value }}">{{ element.config.title.value }}</a>
+{% endblock %}
+
+cms-element-custom-image.htm.twig
+
+{% block cms_element_custom_image %}
+
+{% set imageStruct = element.data.media %}
+{% if imageStruct and imageStruct.media %}
+    {% set media = imageStruct.media %}
+    <div class="cms-element-custom-image">
+        <a href="{{ element.config.url.value }}">
+            <img src="{{ media.url }}"
+             loading="lazy"
+             class="img-fluid"
+
+        />
+        </a>
+    </div>
+{% else %}
+    <div class="cms-element-custom-image">
+        <p>No image selected.</p>
+    </div>
+{% endif %}
+{% endblock %}
+
+cms-element-product-description-reviews.html.twig
+
+{% sw_extends '@Storefront/storefront/element/cms-element-product-description-reviews.html.twig' %}
+
+{% block element_product_description_reviews_tabs_navigation_review %}
+    {{ parent() }}
+    {% block custom_block_short_description %}
+        <li class="nav-item">
+            <a class="nav-link product-detail-tab-navigation-link short-desc-tab"
+               id="short-description-tab-id"
+               data-bs-toggle="tab"
+               data-off-canvas-tabs="true"
+               href="#short-description-content-id"
+               role="tab"
+               aria-controls="short-description-content-id"
+               aria-selected="true">
+                Short description
+                <span class="product-detail-tab-navigation-icon">
+        {% sw_icon 'arrow-medium-right' style {'pack':'solid'} %} </span>
+            </a>
+        </li>
+    {% endblock %}
+{% endblock %}
+
+{% block element_product_description_reviews_tabs_content_review %}
+    {{ parent() }}
+    {% block custom_block_short_description_content %}
+        <div class="tab-pane fade show"
+             id="short-description-content-id"
+             role="tabpanel"
+             aria-labelledby="short-description-tab-id">
+            {{ product.customFields.custom_product_short|raw }}
+        </div>
+    {% endblock %}
+{% endblock %}
+
+layout
+footer
+footer.html.twig
+
+{% sw_extends '@Storefront/storefront/layout/footer/footer.html.twig' %}
+
+{% if not feature('cache_rework') and not footer is defined and page is defined %}
+    {% set footer = page.footer %}
+{% endif %}
+
+header
+header.html.twig
+
+{% sw_extends '@Storefront/storefront/layout/header/header.html.twig' %}
+
+{% block layout_header_actions_cart %}
+    {{ parent() }}
+    <a href="{{ theme_config('ctaUrl') }}"
+       class="btn btn-primary"
+       target="_blank"
+       rel="noopener noreferrer">
+        {{ 'Open Link' }}
+    </a>
+{% endblock %}
+
+	theme.json
+
+{
+  "name": "Blog Theme",
+  "author": "iCreative Technologies",
+  "views": [
+    "@Storefront",
+    "@Plugins",
+    "@Blog"
+  ],
+  "style": [
+    "app/storefront/src/scss/overrides.scss",
+    "@Storefront",
+    "app/storefront/src/scss/base.scss"
+  ],
+  "script": [
+    "@Storefront",
+    "app/storefront/dist/storefront/js/blog/blog.js"
+  ],
+  "asset": [
+    "@Storefront",
+    "app/storefront/src/assets"
+  ],
+  "config": {
+    "fields": {
+      "ctaUrl": {
+        "label": {
+          "en-GB": "CTA Button URL",
+          "de-DE": "CTA-Button-URL"
+        },
+        "type": "url",
+        "scss": false
+      }
+    }
+  }
+  }
+
+
