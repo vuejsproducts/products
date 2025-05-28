@@ -1,0 +1,490 @@
+CmsElement
+
+src
+	resources
+		app/admin/src
+			module/sw-cms
+				1.blocks/text-image/element-text
+					component
+						index.js
+
+import template from './sw-cms-block-element-text.html.twig';
+import './sw-cms-block-element-text.scss';
+
+export default {
+    template,
+};
+twig
+{% block cms_block_element %}
+    <div class="sw-cms-block-element-text">
+            <div class="sw-cms-column">
+                <slot name="left"></slot>
+            </div>
+            <div class="sw-cms-column">
+                <slot name="right"></slot>
+            </div>
+    </div>
+{% endblock %}
+scss
+
+.sw-cms-block-element-text {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-gap: 40px;
+  align-items: start;
+  padding: 20px;
+
+  .sw-cms-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+					preview
+index.js
+import template from './sw-cms-preview-element-text.html.twig';
+import './sw-cms-preview-element-text.scss';
+
+export default {
+    template,
+};
+twig
+{% block cms_preview_element %}
+<div class="sw-cms-preview-element-text">
+        <div class="sw-cms-preview-column">
+            <div class="sw-cms-preview-left">
+                {{ $tc('element-text.general.textLabel') }}<input type="text" class="preview-field">
+                {{ $tc('element-text.general.urlLabel') }}<input  type="text" class="preview-field">
+            </div>
+
+        </div>
+
+        <div class="sw-cms-preview-column">
+            <div class="sw-cms-preview-right">
+                {{ $tc('element-text.general.textLabel') }}<input type="text" class="preview-field">
+                {{ $tc('element-text.general.urlLabel') }}<input  type="text" class="preview-field">
+            </div>
+
+        </div>
+</div>
+{% endblock %}
+scss
+.sw-cms-preview-element-text {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-gap: 20px;
+  padding: 15px;
+
+  .preview-field {
+    height: auto;
+    max-height: 40px;
+    overflow: hidden;
+    width: 120px
+  }
+  .sw-cms-preview-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+
+    p {
+      margin: 0;
+      font-size: 13px;
+    }
+  }
+}
+					snippet
+de
+{
+  "element-text": {
+    "module": {
+      "label": "Element-Text"
+    },
+    "general": {
+      "textLabel": "Text",
+      "urlLabel": "Url-Link"
+    }
+  }
+}
+en
+{
+  "element-text": {
+    "module": {
+      "label": "Element Text"
+    },
+    "general": {
+      "textLabel": "Text",
+      "urlLabel": "Url Link"
+    }
+  }
+}
+					index.js
+
+Shopware.Component.register('sw-cms-preview-element-text', () => import('./preview'));
+
+Shopware.Component.register('sw-cms-block-element-text', () => import('./component'));
+
+Shopware.Service('cmsService').registerCmsBlock({
+    name: 'element-text',
+    label: 'element-text.module.label',
+    category: 'customCategory',
+    component: 'sw-cms-block-element-text',
+    previewComponent: 'sw-cms-preview-element-text',
+    defaultConfig: {
+        marginBottom: '20px',
+        marginTop: '20px',
+        marginLeft: '20px',
+        marginRight: '20px',
+        sizingMode: 'boxed',
+    },
+    slots: {
+        'left':{
+            type: 'custom-element',
+            default: {
+                config: {
+                    text: {
+                        source: 'static',
+                        value: 'Hello World 1'
+                    },
+                    url: {
+                        source: 'static',
+                        value: 'https://google.com/'
+                    }
+                }
+            }
+        },
+
+        'right':{
+            type: 'custom-element',
+            default: {
+                config: {
+                    text: {
+                        source: 'static',
+                        value: 'Hello World 2'
+                    },
+                    url: {
+                        source: 'static',
+                        value: 'https://google.com/'
+                    }
+                }
+            }
+        },
+
+
+    },
+});
+				2.component/sw-cms-sidebar
+					index.js
+						const { Component } = Shopware;
+import template from './sw-cms-sidebar.html.twig';
+
+Component.override('sw-cms-sidebar', {
+    template
+});
+					sw-cms-sidebar.html.twig
+{% block sw_cms_sidebar_block_overview_category_options %}
+    {% parent %}
+    <option value="customCategory">Custom Category</option>
+{% endblock %}
+					
+				3.elements/custom-element
+					component
+						index.js
+import template from './sw-cms-el-custom-element.html.twig';
+const { Mixin } = Shopware;
+const { Component } = Shopware;
+
+Component.register('sw-cms-el-custom-element', {
+    template,
+
+    mixins: [
+        Mixin.getByName('cms-element')
+    ],
+
+    created() {
+        this.createdComponent();
+    },
+
+    methods:{
+        createdComponent() {
+            this.initElementConfig('custom-element');
+        }
+    },
+});
+
+						twig
+
+{% block cms_custom_element %}
+<div class="sw-cms-el-custom-element">
+        {% block sw_cms_element_custom_element_content %}
+            <div v-for="(item, index) in element.config.items.value" :key="index">
+                    <p><strong>{{ $tc('custom-element.general.textLabel') }}:</strong> {{ item.text }}</p>
+                    <p><strong>{{ $tc('custom-element.general.urlLabel') }}:</strong> {{ item.url }}</p>
+            </div>
+        {% endblock %}
+</div>
+{% endblock %}
+
+						scss
+.sw-cms-el-custom-element {
+    display: flex;
+    max-width: 100%;
+}
+					config
+index.js
+import template from './sw-cms-el-config-custom-element.html.twig';
+const { Mixin } = Shopware;
+const { Component } = Shopware;
+
+Component.register('sw-cms-el-config-custom-element', {
+    template,
+
+    mixins: [
+        Mixin.getByName('cms-element')
+    ],
+
+    created() {
+        this.createdComponent();
+    },
+
+    methods: {
+        createdComponent() {
+            this.initElementConfig('custom-element');
+            if (!this.element.config.items.value) {
+                this.$set(this.element.config.items, 'value', [
+                    { text: 'Hello World!', url: 'https://google.com/' }
+                ]);
+            }
+        },
+
+        addField() {
+            this.element.config.items.value.push({ text: '', url: '' });
+            this.onConfigUpdate();
+        },
+
+        removeField(index) {
+            this.element.config.items.value.splice(index, 1);
+            this.onConfigUpdate();
+        },
+
+        onConfigUpdate() {
+            this.$emit('element-update', this.element);
+        }
+    }
+});
+twig
+{% block cms_config_custom_element %}
+<div>
+    <div v-for="(item, index) in element.config.items.value" :key="index" class="sw-field">
+        <sw-text-field
+                    label="Text"
+                    v-model:value="item.text"
+                    @input="onConfigUpdate"
+                    style="margin-bottom: 10px;"
+        >
+        </sw-text-field>
+        <sw-text-field
+                    label="URL"
+                    v-model:value="item.url"
+                    @input="onConfigUpdate"
+                    style="margin-bottom: 10px;"
+        >
+        </sw-text-field>
+        <sw-button @click="removeField(index)" variant="danger" size="small">Remove</sw-button>
+    </div>
+        <sw-button @click="addField" variant="primary" size="small">Add More Element</sw-button>
+</div>
+{% endblock %}
+					preview
+index.js
+import template from './sw-cms-el-preview-custom-element.html.twig';
+import './sw-cms-el-preview-custom-element.scss';
+
+const { Component } = Shopware;
+
+Component.register('sw-cms-el-preview-custom-element', {
+    template,
+
+});
+twig
+
+{% block cms_preview_custom_element %}
+<div class="sw-cms-el-preview-custom-element">
+    {{ $tc('custom-element.general.textLabel') }}<input type="text" class="preview-field">
+    {{ $tc('custom-element.general.urlLabel') }}:<input  type="text" class="preview-field">
+</div>
+{% endblock %}
+
+scss
+
+.sw-cms-el-preview-custom-element {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .preview-field {
+        height: auto;
+        max-height: 40px;
+        overflow: hidden;
+    }
+}
+
+					snippet
+de
+{
+  "custom-element": {
+    "module": {
+      "label": "Benutzerdefiniertes Element"
+    },
+    "general": {
+      "textLabel": "Text",
+      "urlLabel": "Url Link"
+    }
+  }
+}
+en
+
+{
+  "custom-element": {
+    "module": {
+      "label": "Custom Element"
+    },
+    "general": {
+      "textLabel": "Text",
+      "urlLabel": "Url Link"
+    }
+  }
+}
+
+					index.js
+import './component';
+import './config';
+import './preview';
+
+Shopware.Service('cmsService').registerCmsElement({
+    name: 'custom-element',
+    label: 'custom-element.module.label',
+    component: 'sw-cms-el-custom-element',
+    configComponent: 'sw-cms-el-config-custom-element',
+    previewComponent: 'sw-cms-el-preview-custom-element',
+    defaultConfig: {
+        items: {
+            source: 'static',
+            value: [
+                {
+                    text: 'Hello World! 1',
+                    url: 'https://google.com/'
+                },
+                {
+                    text: 'Hello World! 2',
+                    url: 'https://google.com/'
+                },
+                {
+                    text: 'Hello World! 3',
+                    url: 'https://google.com/'
+                }
+            ]
+        }
+    }
+});
+			main.js
+
+import './module/sw-cms/blocks/text-image/element-text';
+import './module/sw-cms/elements/custom-element'
+import './module/sw-cms/component/sw-cms-sidebar';
+
+		config
+services.xml
+<?xml version="1.0" ?>
+
+<container xmlns="http://symfony.com/schema/dic/services"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://symfony.com/schema/dic/services http://symfony.com/schema/dic/services/services-1.0.xsd">
+
+    <services>
+
+    </services>
+</container>
+		public
+			admin
+				css
+					cms-element.css
+.sw-cms-el-preview-custom-element{width:100%;height:100%;display:flex;flex-direction:column;gap:10px}.sw-cms-el-preview-custom-element .preview-field{height:auto;max-height:40px;overflow:hidden}
+				js
+cms-element.js
+
+!function(){var e,t,n,o,r,i,s,l,a={672:function(){},974:function(e,t,n){Shopware.Component.register("sw-cms-preview-element-text",()=>n.e(172).then(n.bind(n,172))),Shopware.Component.register("sw-cms-block-element-text",()=>n.e(913).then(n.bind(n,913))),Shopware.Service("cmsService").registerCmsBlock({name:"element-text",label:"element-text.module.label",category:"customCategory",component:"sw-cms-block-element-text",previewComponent:"sw-cms-preview-element-text",defaultConfig:{marginBottom:"20px",marginTop:"20px",marginLeft:"20px",marginRight:"20px",sizingMode:"boxed"},slots:{left:{type:"custom-element",default:{config:{text:{source:"static",value:"Hello World 1"},url:{source:"static",value:"https://google.com/"}}}},right:{type:"custom-element",default:{config:{text:{source:"static",value:"Hello World 2"},url:{source:"static",value:"https://google.com/"}}}}}})},825:function(e,t,n){var o=n(672);o.__esModule&&(o=o.default),"string"==typeof o&&(o=[[e.id,o,""]]),o.locals&&(e.exports=o.locals),(0,n(534).A)("5f5d52a7",o,!0,{})},534:function(e,t,n){"use strict";function o(e,t){for(var n=[],o={},r=0;r<t.length;r++){var i=t[r],s=i[0],l={id:e+":"+r,css:i[1],media:i[2],sourceMap:i[3]};o[s]?o[s].parts.push(l):n.push(o[s]={id:s,parts:[l]})}return n}n.d(t,{A:function(){return g}});var r,i="undefined"!=typeof document;if("undefined"!=typeof DEBUG&&DEBUG&&!i)throw Error("vue-style-loader cannot be used in a non-browser environment. Use { target: 'node' } in your Webpack config to indicate a server-rendering environment.");var s={},l=i&&(document.head||document.getElementsByTagName("head")[0]),a=null,c=0,m=!1,u=function(){},d=null,p="data-vue-ssr-id",f="undefined"!=typeof navigator&&/msie [6-9]\b/.test(navigator.userAgent.toLowerCase());function g(e,t,n,r){m=n,d=r||{};var i=o(e,t);return v(i),function(t){for(var n=[],r=0;r<i.length;r++){var l=s[i[r].id];l.refs--,n.push(l)}t?v(i=o(e,t)):i=[];for(var r=0;r<n.length;r++){var l=n[r];if(0===l.refs){for(var a=0;a<l.parts.length;a++)l.parts[a]();delete s[l.id]}}}}function v(e){for(var t=0;t<e.length;t++){var n=e[t],o=s[n.id];if(o){o.refs++;for(var r=0;r<o.parts.length;r++)o.parts[r](n.parts[r]);for(;r<n.parts.length;r++)o.parts.push(b(n.parts[r]));o.parts.length>n.parts.length&&(o.parts.length=n.parts.length)}else{for(var i=[],r=0;r<n.parts.length;r++)i.push(b(n.parts[r]));s[n.id]={id:n.id,refs:1,parts:i}}}}function h(){var e=document.createElement("style");return e.type="text/css",l.appendChild(e),e}function b(e){var t,n,o=document.querySelector("style["+p+'~="'+e.id+'"]');if(o){if(m)return u;o.parentNode.removeChild(o)}if(f){var r=c++;t=y.bind(null,o=a||(a=h()),r,!1),n=y.bind(null,o,r,!0)}else t=x.bind(null,o=h()),n=function(){o.parentNode.removeChild(o)};return t(e),function(o){o?(o.css!==e.css||o.media!==e.media||o.sourceMap!==e.sourceMap)&&t(e=o):n()}}var w=(r=[],function(e,t){return r[e]=t,r.filter(Boolean).join("\n")});function y(e,t,n,o){var r=n?"":o.css;if(e.styleSheet)e.styleSheet.cssText=w(t,r);else{var i=document.createTextNode(r),s=e.childNodes;s[t]&&e.removeChild(s[t]),s.length?e.insertBefore(i,s[t]):e.appendChild(i)}}function x(e,t){var n=t.css,o=t.media,r=t.sourceMap;if(o&&e.setAttribute("media",o),d.ssrId&&e.setAttribute(p,t.id),r&&(n+="\n/*# sourceURL="+r.sources[0]+" */",n+="\n/*# sourceMappingURL=data:application/json;base64,"+btoa(unescape(encodeURIComponent(JSON.stringify(r))))+" */"),e.styleSheet)e.styleSheet.cssText=n;else{for(;e.firstChild;)e.removeChild(e.firstChild);e.appendChild(document.createTextNode(n))}}}},c={};function m(e){var t=c[e];if(void 0!==t)return t.exports;var n=c[e]={id:e,exports:{}};return a[e](n,n.exports,m),n.exports}m.m=a,m.d=function(e,t){for(var n in t)m.o(t,n)&&!m.o(e,n)&&Object.defineProperty(e,n,{enumerable:!0,get:t[n]})},m.f={},m.e=function(e){return Promise.all(Object.keys(m.f).reduce(function(t,n){return m.f[n](e,t),t},[]))},m.u=function(e){return"static/js/"+({172:"8bccec7180d799c37ea4",913:"da257c08312450b2823e"})[e]+".js"},m.miniCssF=function(e){return"static/css/"+(853===e?"cms-element":e)+".css"},m.o=function(e,t){return Object.prototype.hasOwnProperty.call(e,t)},e={},t="cms-element:",m.l=function(n,o,r,i){if(e[n]){e[n].push(o);return}if(void 0!==r)for(var s,l,a=document.getElementsByTagName("script"),c=0;c<a.length;c++){var u=a[c];if(u.getAttribute("src")==n||u.getAttribute("data-webpack")==t+r){s=u;break}}s||(l=!0,(s=document.createElement("script")).charset="utf-8",s.timeout=120,m.nc&&s.setAttribute("nonce",m.nc),s.setAttribute("data-webpack",t+r),s.src=n),e[n]=[o];var d=function(t,o){s.onerror=s.onload=null,clearTimeout(p);var r=e[n];if(delete e[n],s.parentNode&&s.parentNode.removeChild(s),r&&r.forEach(function(e){return e(o)}),t)return t(o)},p=setTimeout(d.bind(null,void 0,{type:"timeout",target:s}),12e4);s.onerror=d.bind(null,s.onerror),s.onload=d.bind(null,s.onload),l&&document.head.appendChild(s)},m.r=function(e){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})},m.p="bundles/cmselement/",n=function(e,t,n,o){var r=document.createElement("link");return r.rel="stylesheet",r.type="text/css",r.onerror=r.onload=function(i){if(r.onerror=r.onload=null,"load"===i.type)n();else{var s=i&&("load"===i.type?"missing":i.type),l=i&&i.target&&i.target.href||t,a=Error("Loading CSS chunk "+e+" failed.\n("+l+")");a.code="CSS_CHUNK_LOAD_FAILED",a.type=s,a.request=l,r.parentNode.removeChild(r),o(a)}},r.href=t,document.head.appendChild(r),r},o=function(e,t){for(var n=document.getElementsByTagName("link"),o=0;o<n.length;o++){var r=n[o],i=r.getAttribute("data-href")||r.getAttribute("href");if("stylesheet"===r.rel&&(i===e||i===t))return r}for(var s=document.getElementsByTagName("style"),o=0;o<s.length;o++){var r=s[o],i=r.getAttribute("data-href");if(i===e||i===t)return r}},r={853:0},m.f.miniCss=function(e,t){r[e]?t.push(r[e]):0!==r[e]&&({172:1,913:1})[e]&&t.push(r[e]=new Promise(function(t,r){var i=m.miniCssF(e),s=m.p+i;if(o(i,s))return t();n(e,s,t,r)}).then(function(){r[e]=0},function(t){throw delete r[e],t}))},i={853:0},m.f.j=function(e,t){var n=m.o(i,e)?i[e]:void 0;if(0!==n){if(n)t.push(n[2]);else{var o=new Promise(function(t,o){n=i[e]=[t,o]});t.push(n[2]=o);var r=m.p+m.u(e),s=Error();m.l(r,function(t){if(m.o(i,e)&&(0!==(n=i[e])&&(i[e]=void 0),n)){var o=t&&("load"===t.type?"missing":t.type),r=t&&t.target&&t.target.src;s.message="Loading chunk "+e+" failed.\n("+o+": "+r+")",s.name="ChunkLoadError",s.type=o,s.request=r,n[1](s)}},"chunk-"+e,e)}}},s=function(e,t){var n,o,r=t[0],s=t[1],l=t[2],a=0;if(r.some(function(e){return 0!==i[e]})){for(n in s)m.o(s,n)&&(m.m[n]=s[n]);l&&l(m)}for(e&&e(t);a<r.length;a++)o=r[a],m.o(i,o)&&i[o]&&i[o][0](),i[o]=0},(l=window["webpackJsonpPlugincms-element"]=window["webpackJsonpPlugincms-element"]||[]).forEach(s.bind(null,0)),l.push=s.bind(null,l.push.bind(l)),window?.__sw__?.assetPath&&(m.p=window.__sw__.assetPath+"/bundles/cmselement/"),function(){"use strict";m(974);let{Mixin:e}=Shopware,{Component:t}=Shopware;t.register("sw-cms-el-custom-element",{template:'{% block cms_custom_element %}\n<div class="sw-cms-el-custom-element">\n        {% block sw_cms_element_custom_element_content %}\n            <div v-for="(item, index) in element.config.items.value" :key="index">\n                    <p><strong>{{ $tc(\'custom-element.general.textLabel\') }}:</strong> {{ item.text }}</p>\n                    <p><strong>{{ $tc(\'custom-element.general.urlLabel\') }}:</strong> {{ item.url }}</p>\n            </div>\n        {% endblock %}\n</div>\n{% endblock %}\n',mixins:[e.getByName("cms-element")],created(){this.createdComponent()},methods:{createdComponent(){this.initElementConfig("custom-element")}}});let{Mixin:n}=Shopware,{Component:o}=Shopware;o.register("sw-cms-el-config-custom-element",{template:'{% block cms_config_custom_element %}\n<div>\n    <div v-for="(item, index) in element.config.items.value" :key="index" class="sw-field">\n        <sw-text-field\n                    label="Text"\n                    v-model:value="item.text"\n                    @input="onConfigUpdate"\n                    style="margin-bottom: 10px;"\n        >\n        </sw-text-field>\n        <sw-text-field\n                    label="URL"\n                    v-model:value="item.url"\n                    @input="onConfigUpdate"\n                    style="margin-bottom: 10px;"\n        >\n        </sw-text-field>\n        <sw-button @click="removeField(index)" variant="danger" size="small">Remove</sw-button>\n    </div>\n        <sw-button @click="addField" variant="primary" size="small">Add More Element</sw-button>\n</div>\n{% endblock %}',mixins:[n.getByName("cms-element")],created(){this.createdComponent()},methods:{createdComponent(){this.initElementConfig("custom-element"),this.element.config.items.value||this.$set(this.element.config.items,"value",[{text:"Hello World!",url:"https://google.com/"}])},addField(){this.element.config.items.value.push({text:"",url:""}),this.onConfigUpdate()},removeField(e){this.element.config.items.value.splice(e,1),this.onConfigUpdate()},onConfigUpdate(){this.$emit("element-update",this.element)}}}),m(825);let{Component:r}=Shopware;r.register("sw-cms-el-preview-custom-element",{template:'{% block cms_preview_custom_element %}\n<div class="sw-cms-el-preview-custom-element">\n    {{ $tc(\'custom-element.general.textLabel\') }}<input type="text" class="preview-field">\n    {{ $tc(\'custom-element.general.urlLabel\') }}:<input  type="text" class="preview-field">\n</div>\n{% endblock %}\n'}),Shopware.Service("cmsService").registerCmsElement({name:"custom-element",label:"custom-element.module.label",component:"sw-cms-el-custom-element",configComponent:"sw-cms-el-config-custom-element",previewComponent:"sw-cms-el-preview-custom-element",defaultConfig:{items:{source:"static",value:[{text:"Hello World! 1",url:"https://google.com/"},{text:"Hello World! 2",url:"https://google.com/"},{text:"Hello World! 3",url:"https://google.com/"}]}}});let{Component:i}=Shopware;i.override("sw-cms-sidebar",{template:'{% block sw_cms_sidebar_block_overview_category_options %}\n    {% parent %}\n    <option value="customCategory">Custom Category</option>\n{% endblock %}'})}()}();
+			static
+		views/storefront
+block
+	cms-block-element-text.html.twig
+{% block block_element_text %}
+    {% set columns = 2 %}
+
+    {% block block_element_left %}
+        <div class="col-md-6">
+            {% set element = block.slots.getSlot('left') %}
+            {% block block_element_left_inner %}
+                <div data-cms-element-id="{{ element.id }}">
+                    {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                </div>
+            {% endblock %}
+
+        </div>
+    {% endblock %}
+
+    {% block block_element_right %}
+        <div class="col-md-6">
+            {% set element = block.slots.getSlot('right') %}
+            {% block block_element_right_inner %}
+                <div data-cms-element-id="{{ element.id }}">
+                    {% sw_include '@Storefront/storefront/element/cms-element-' ~ element.type ~ '.html.twig' ignore missing %}
+                </div>
+            {% endblock %}
+
+        </div>
+    {% endblock %}
+{% endblock %}
+element
+cms-element-custom-element.twig
+{% block cms_element_custom_element %}
+    <div class="cms-element-custom-element">
+        <div class="custom-grid">
+            {% for item in element.config.items.value %}
+                <div class="custom-item">
+                    {% if item.text is not empty %}
+                        <strong>Text:</strong> <a class="custom-text" href="{{ item.url }}">{{ item.text }}</a>
+                    {% endif %}
+                    {% if item.url is not empty %}
+                        <div class="custom-url">
+                            <strong>URL:</strong>
+                            <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">
+                                {{ item.url }}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}
+	cmselement.php
+tests
+TestBootstrap.php
+<?php declare(strict_types=1);
+
+use Shopware\Core\TestBootstrapper;
+
+$loader = (new TestBootstrapper())
+    ->addCallingPlugin()
+    ->addActivePlugins('CmsElement')
+    ->setForceInstallPlugins(true)
+    ->bootstrap()
+    ->getClassLoader();
+
+$loader->addPsr4('CmsElement\\Tests\\', __DIR__);
